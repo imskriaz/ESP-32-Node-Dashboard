@@ -161,4 +161,17 @@ router.get('/ussd', async (req, res) => {
         res.redirect('/');
     }
 });
+
+router.get('/webcam', async (req, res) => {
+    try {
+        res.render('pages/webcam', {
+            title: 'Webcam',
+            user: req.session.user
+        });
+    } catch (error) {
+        logger.error('Webcam page error:', error);
+        req.flash('error', 'Failed to load webcam page');
+        res.redirect('/');
+    }
+});
 module.exports = router;

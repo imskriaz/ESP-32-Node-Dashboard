@@ -1,20 +1,12 @@
 const express = require('express');
 const router = express.Router();
 
-// Import routers
-const smsRouter = require('./sms');
-const callsRouter = require('./calls');
-const contactsRouter = require('./contacts');
-const statusRouter = require('./status');
-const modemRouter = require('./modem');
-const ussdRouter = require('./ussd');
-
-// Use routers
-router.use('/sms', smsRouter);
-router.use('/calls', callsRouter);
-router.use('/contacts', contactsRouter);
-router.use('/status', statusRouter);
-router.use('/modem', modemRouter);
-router.use('/ussd', ussdRouter);
+router.use('/sms', require('./sms'));
+router.use('/calls', require('./calls'));
+router.use('/contacts', require('./contacts'));
+router.use('/status', require('./status'));
+router.use('/modem', require('./modem'));
+router.use('/ussd', require('./ussd'));
+router.use('/webcam', require('./webcam'));
 
 module.exports = router;

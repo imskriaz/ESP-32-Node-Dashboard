@@ -1,0 +1,574 @@
+// Webcam JavaScript
+(function() {
+    'use strict';
+    
+    console.log('Webcam.js loaded - ' + new Date().toISOString());
+
+    // State
+    let webcamEnabled = false;
+    let updateInterval = null;
+    let motionDetectionEnabled = false;
+    let recording = false;
+    let currentSettings = {};
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+
+    function init() {
+        console.log('Initializing Webcam page...');
+        
+        loadStatus();
+        loadLatestCapture();
+        loadCaptureHistory();
+        attachEventListeners();
+        attachSocketListeners();
+        startUpdates();
+    }
+
+    // Load webcam status
+    function loadStatus() {
+        fetch('/api/webcam/status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateStatus(data.data);
+                }
+            })
+            .catch(error => console.error('Error loading webcam status:', error));
+    }
+
+    // Update UI with webcam status
+    function updateStatus(data) {
+        webcamEnabled = data.enabled;
+        
+        // Update toggle
+        const toggle = document.getElementById('webcamToggle');
+        const toggleLabel = document.getElementById('webcamToggleLabel');
+        if (toggle) {
+            toggle.checked = data.enabled;
+            toggleLabel.textContent = data.enabled ? 'Disable Camera' : 'Enable Camera';
+        }
+
+        // Update status banner
+        const statusText = document.getElementById('cameraStatusText');
+        const statusBanner = document.getElementById('cameraStatusBanner');
+        if (statusText) {
+            if (data.enabled) {
+                statusText.textContent = 'Camera is active';
+                statusBanner.className = 'alert alert-success d-flex align-items-center mb-4';
+            } else {
+                statusText.textContent = 'Camera is disabled';
+                statusBanner.className = 'alert alert-secondary d-flex align-items-center mb-4';
+            }
+        }
+
+        // Update camera info
+        document.getElementById('cameraResolution').textContent = data.settings?.resolution || '640x480';
+        document.getElementById('cameraFPS').textContent = (data.settings?.fps || 15) + ' fps';
+        document.getElementById('infoResolution').textContent = data.settings?.resolution || '640x480';
+        document.getElementById('infoFPS').textContent = (data.settings?.fps || 15) + ' fps';
+        document.getElementById('infoQuality').textContent = (data.settings?.quality || 80) + '%';
+        document.getElementById('infoBrightness').textContent = data.settings?.brightness || 0;
+        document.getElementById('infoContrast').textContent = data.settings?.contrast || 0;
+
+        // Update settings form
+        if (data.settings) {
+            currentSettings = data.settings;
+            updateSettingsForm(data.settings);
+        }
+
+        // Update live feed
+        updateLiveFeed(data.enabled);
+    }
+
+    // Update live feed display
+    function updateLiveFeed(enabled) {
+        const feedImg = document.getElementById('cameraFeed');
+        const noFeedMsg = document.getElementById('noFeedMessage');
+        
+        if (enabled) {
+            feedImg.style.display = 'inline';
+            noFeedMsg.style.display = 'none';
+            // In production, this would be a real stream URL
+            // feedImg.src = '/api/webcam/stream?' + new Date().getTime();
+        } else {
+            feedImg.style.display = 'none';
+            noFeedMsg.style.display = 'flex';
+        }
+    }
+
+    // Update settings form with current values
+    function updateSettingsForm(settings) {
+        // Resolution
+        const resolutionSelect = document.getElementById('settingResolution');
+        if (resolutionSelect && settings.resolution) {
+            resolutionSelect.value = settings.resolution;
+        }
+
+        // FPS
+        const fpsInput = document.getElementById('settingFPS');
+        const fpsValue = document.getElementById('fpsValue');
+        if (fpsInput && settings.fps) {
+            fpsInput.value = settings.fps;
+            fpsValue.textContent = settings.fps + ' fps';
+        }
+
+        // Quality
+        const qualityInput = document.getElementById('settingQuality');
+        const qualityValue = document.getElementById('qualityValue');
+        if (qualityInput && settings.quality) {
+            qualityInput.value = settings.quality;
+            qualityValue.textContent = settings.quality + '%';
+        }
+
+        // Brightness
+        const brightnessInput = document.getElementById('settingBrightness');
+        const brightnessValue = document.getElementById('brightnessValue');
+        if (brightnessInput && settings.brightness !== undefined) {
+            brightnessInput.value = settings.brightness;
+            brightnessValue.textContent = settings.brightness;
+        }
+
+        // Contrast
+        const contrastInput = document.getElementById('settingContrast');
+        const contrastValue = document.getElementById('contrastValue');
+        if (contrastInput && settings.contrast !== undefined) {
+            contrastInput.value = settings.contrast;
+            contrastValue.textContent = settings.contrast;
+        }
+
+        // Saturation
+        const saturationInput = document.getElementById('settingSaturation');
+        const saturationValue = document.getElementById('saturationValue');
+        if (saturationInput && settings.saturation !== undefined) {
+            saturationInput.value = settings.saturation;
+            saturationValue.textContent = settings.saturation;
+        }
+
+        // Sharpness
+        const sharpnessInput = document.getElementById('settingSharpness');
+        const sharpnessValue = document.getElementById('sharpnessValue');
+        if (sharpnessInput && settings.sharpness !== undefined) {
+            sharpnessInput.value = settings.sharpness;
+            sharpnessValue.textContent = settings.sharpness;
+        }
+
+        // Flip settings
+        const flipH = document.getElementById('settingFlipH');
+        const flipV = document.getElementById('settingFlipV');
+        if (flipH) flipH.checked = settings.flip_h || false;
+        if (flipV) flipV.checked = settings.flip_v || false;
+
+        // Motion detection
+        const motionEnable = document.getElementById('motionEnable');
+        if (motionEnable) motionEnable.checked = settings.motion_detection || false;
+
+        const motionSensitivity = document.getElementById('motionSensitivity');
+        const sensitivityValue = document.getElementById('sensitivityValue');
+        if (motionSensitivity && settings.motion_sensitivity) {
+            motionSensitivity.value = settings.motion_sensitivity;
+            sensitivityValue.textContent = settings.motion_sensitivity + '%';
+        }
+    }
+
+    // Toggle webcam
+    function toggleWebcam(enabled) {
+        fetch('/api/webcam/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message, 'success');
+                loadStatus();
+            } else {
+                showToast(data.message || 'Failed to toggle webcam', 'danger');
+                document.getElementById('webcamToggle').checked = !enabled;
+            }
+        })
+        .catch(error => {
+            console.error('Error toggling webcam:', error);
+            showToast('Error toggling webcam', 'danger');
+        });
+    }
+
+    // Capture image
+    function captureImage() {
+        showToast('Capturing image...', 'info');
+
+        fetch('/api/webcam/capture', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Image captured', 'success');
+                showCaptureModal(data.data);
+                loadLatestCapture();
+                loadCaptureHistory();
+            } else {
+                showToast(data.message || 'Failed to capture image', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error capturing image:', error);
+            showToast('Error capturing image', 'danger');
+        });
+    }
+
+    // Show capture in modal
+    function showCaptureModal(data) {
+        const modalImg = document.getElementById('modalCapture');
+        const modalInfo = document.getElementById('modalCaptureInfo');
+        
+        modalImg.src = data.url;
+        modalInfo.textContent = `${data.resolution} | ${Math.round(data.size / 1024)} KB | ${new Date(data.timestamp).toLocaleString()}`;
+        
+        const modal = new bootstrap.Modal(document.getElementById('captureModal'));
+        modal.show();
+    }
+
+    // Load latest capture
+    function loadLatestCapture() {
+        fetch('/api/webcam/latest')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data) {
+                    const latestImg = document.getElementById('latestCapture');
+                    const noMsg = document.getElementById('noCaptureMessage');
+                    
+                    if (latestImg && noMsg) {
+                        latestImg.src = data.data.path;
+                        latestImg.style.display = 'inline';
+                        noMsg.style.display = 'none';
+                    }
+                }
+            })
+            .catch(console.error);
+    }
+
+    // Load capture history
+    function loadCaptureHistory() {
+        const container = document.getElementById('captureHistory');
+        if (!container) return;
+
+        // In production, this would fetch from /api/webcam/history
+        // For now, show placeholder
+        setTimeout(() => {
+            container.innerHTML = `
+                <div class="col-12 text-center py-4 text-muted">
+                    <i class="bi bi-images fs-1 d-block mb-3"></i>
+                    <p>No captures yet</p>
+                    <button class="btn btn-primary" onclick="captureImage()">
+                        <i class="bi bi-camera"></i> Take First Photo
+                    </button>
+                </div>
+            `;
+        }, 500);
+    }
+
+    // Save camera settings
+    function saveSettings() {
+        const settings = {
+            resolution: document.getElementById('settingResolution').value,
+            fps: parseInt(document.getElementById('settingFPS').value),
+            quality: parseInt(document.getElementById('settingQuality').value),
+            brightness: parseInt(document.getElementById('settingBrightness').value),
+            contrast: parseInt(document.getElementById('settingContrast').value),
+            saturation: parseInt(document.getElementById('settingSaturation').value),
+            sharpness: parseInt(document.getElementById('settingSharpness').value),
+            flip_h: document.getElementById('settingFlipH').checked,
+            flip_v: document.getElementById('settingFlipV').checked
+        };
+
+        fetch('/api/webcam/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Settings saved', 'success');
+                loadStatus();
+            } else {
+                showToast(data.message || 'Failed to save settings', 'danger');
+            }
+        })
+        .catch(console.error);
+    }
+
+    // Reset settings to default
+    function resetSettings() {
+        if (confirm('Reset all settings to default?')) {
+            document.getElementById('settingResolution').value = '640x480';
+            document.getElementById('settingFPS').value = 15;
+            document.getElementById('fpsValue').textContent = '15 fps';
+            document.getElementById('settingQuality').value = 80;
+            document.getElementById('qualityValue').textContent = '80%';
+            document.getElementById('settingBrightness').value = 0;
+            document.getElementById('brightnessValue').textContent = '0';
+            document.getElementById('settingContrast').value = 0;
+            document.getElementById('contrastValue').textContent = '0';
+            document.getElementById('settingSaturation').value = 0;
+            document.getElementById('saturationValue').textContent = '0';
+            document.getElementById('settingSharpness').value = 0;
+            document.getElementById('sharpnessValue').textContent = '0';
+            document.getElementById('settingFlipH').checked = false;
+            document.getElementById('settingFlipV').checked = false;
+            
+            saveSettings();
+        }
+    }
+
+    // Test settings with capture
+    function testSettings() {
+        saveSettings();
+        setTimeout(captureImage, 500);
+    }
+
+    // Toggle motion detection
+    function toggleMotion() {
+        const enabled = !motionDetectionEnabled;
+        
+        fetch('/api/webcam/motion/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                motionDetectionEnabled = enabled;
+                const btn = document.getElementById('motionBtn');
+                btn.innerHTML = enabled ? 
+                    '<i class="bi bi-activity"></i> Disable Motion Detection' : 
+                    '<i class="bi bi-activity"></i> Enable Motion Detection';
+                btn.className = enabled ? 'btn btn-outline-danger' : 'btn btn-outline-success';
+                showToast(data.message, 'success');
+            }
+        })
+        .catch(console.error);
+    }
+
+    // Save motion settings
+    function saveMotionSettings() {
+        const enabled = document.getElementById('motionEnable').checked;
+        const sensitivity = document.getElementById('motionSensitivity').value;
+
+        fetch('/api/webcam/motion/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled, sensitivity: parseInt(sensitivity) })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Motion settings saved', 'success');
+            }
+        })
+        .catch(console.error);
+    }
+
+    // Start recording
+    function startRecording() {
+        const btn = document.getElementById('recordBtn');
+        
+        if (!recording) {
+            fetch('/api/webcam/record/start', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        recording = true;
+                        btn.innerHTML = '<i class="bi bi-stop-circle"></i> Stop Recording';
+                        btn.className = 'btn btn-sm btn-outline-danger';
+                        showToast('Recording started', 'success');
+                    }
+                })
+                .catch(console.error);
+        } else {
+            fetch('/api/webcam/record/stop', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        recording = false;
+                        btn.innerHTML = '<i class="bi bi-record-circle"></i> Start Recording';
+                        btn.className = 'btn btn-sm btn-outline-success';
+                        showToast('Recording stopped', 'success');
+                    }
+                })
+                .catch(console.error);
+        }
+    }
+
+    // Toggle fullscreen
+    function toggleFullscreen() {
+        const feed = document.getElementById('liveFeed');
+        if (!document.fullscreenElement) {
+            feed.requestFullscreen();
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    // Reset motion zone
+    function resetMotionZone() {
+        const canvas = document.getElementById('motionZoneCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Refresh webcam data
+    function refreshWebcamData() {
+        loadStatus();
+        loadLatestCapture();
+        showToast('Webcam data refreshed', 'success');
+    }
+
+    // Attach event listeners
+    function attachEventListeners() {
+        // Webcam toggle
+        const webcamToggle = document.getElementById('webcamToggle');
+        if (webcamToggle) {
+            webcamToggle.addEventListener('change', (e) => {
+                toggleWebcam(e.target.checked);
+            });
+        }
+
+        // Range inputs
+        const fpsInput = document.getElementById('settingFPS');
+        if (fpsInput) {
+            fpsInput.addEventListener('input', (e) => {
+                document.getElementById('fpsValue').textContent = e.target.value + ' fps';
+            });
+        }
+
+        const qualityInput = document.getElementById('settingQuality');
+        if (qualityInput) {
+            qualityInput.addEventListener('input', (e) => {
+                document.getElementById('qualityValue').textContent = e.target.value + '%';
+            });
+        }
+
+        const brightnessInput = document.getElementById('settingBrightness');
+        if (brightnessInput) {
+            brightnessInput.addEventListener('input', (e) => {
+                document.getElementById('brightnessValue').textContent = e.target.value;
+            });
+        }
+
+        const contrastInput = document.getElementById('settingContrast');
+        if (contrastInput) {
+            contrastInput.addEventListener('input', (e) => {
+                document.getElementById('contrastValue').textContent = e.target.value;
+            });
+        }
+
+        const saturationInput = document.getElementById('settingSaturation');
+        if (saturationInput) {
+            saturationInput.addEventListener('input', (e) => {
+                document.getElementById('saturationValue').textContent = e.target.value;
+            });
+        }
+
+        const sharpnessInput = document.getElementById('settingSharpness');
+        if (sharpnessInput) {
+            sharpnessInput.addEventListener('input', (e) => {
+                document.getElementById('sharpnessValue').textContent = e.target.value;
+            });
+        }
+
+        const motionSensitivity = document.getElementById('motionSensitivity');
+        if (motionSensitivity) {
+            motionSensitivity.addEventListener('input', (e) => {
+                document.getElementById('sensitivityValue').textContent = e.target.value + '%';
+            });
+        }
+    }
+
+    // Socket listeners
+    function attachSocketListeners() {
+        if (typeof socket === 'undefined') return;
+
+        socket.off('webcam:status');
+        socket.off('webcam:settings');
+        socket.off('webcam:capture');
+        socket.off('webcam:motion');
+
+        socket.on('webcam:status', (data) => {
+            showToast(`Webcam ${data.enabled ? 'enabled' : 'disabled'}`, 'info');
+            loadStatus();
+        });
+
+        socket.on('webcam:capture', (data) => {
+            showToast('New image captured', 'info');
+            loadLatestCapture();
+        });
+
+        socket.on('webcam:motion', (data) => {
+            const overlay = document.getElementById('motionOverlay');
+            if (data.enabled) {
+                overlay.style.display = 'block';
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                }, 3000);
+            }
+        });
+    }
+
+    // Start periodic updates
+    function startUpdates() {
+        if (updateInterval) clearInterval(updateInterval);
+        updateInterval = setInterval(() => {
+            if (webcamEnabled) {
+                // In production, this would update the live feed
+                // document.getElementById('cameraFeed').src = '/api/webcam/stream?' + new Date().getTime();
+                document.getElementById('streamUpdateTime').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+            }
+        }, 1000);
+    }
+
+    // Show toast
+    function showToast(message, type = 'info') {
+        if (typeof window.showToast === 'function') {
+            window.showToast(message, type);
+        } else {
+            alert(message);
+        }
+    }
+
+    // Cleanup
+    window.addEventListener('beforeunload', () => {
+        if (updateInterval) clearInterval(updateInterval);
+    });
+
+    // Export functions
+    window.toggleWebcam = toggleWebcam;
+    window.captureImage = captureImage;
+    window.saveSettings = saveSettings;
+    window.resetSettings = resetSettings;
+    window.testSettings = testSettings;
+    window.toggleMotion = toggleMotion;
+    window.saveMotionSettings = saveMotionSettings;
+    window.startRecording = startRecording;
+    window.toggleFullscreen = toggleFullscreen;
+    window.resetMotionZone = resetMotionZone;
+    window.refreshWebcamData = refreshWebcamData;
+    window.downloadCapture = function() {
+        const img = document.getElementById('modalCapture');
+        if (img.src) {
+            const a = document.createElement('a');
+            a.href = img.src;
+            a.download = 'capture-' + Date.now() + '.jpg';
+            a.click();
+        }
+    };
+})();

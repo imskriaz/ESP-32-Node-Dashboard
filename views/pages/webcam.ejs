@@ -1,0 +1,513 @@
+<!-- Webcam Page -->
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
+    <div>
+        <h2 class="mb-1">
+            <i class="bi bi-camera me-2"></i>Webcam
+        </h2>
+        <p class="text-muted mb-0">Control and monitor your ESP32-S3 camera</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary" onclick="refreshWebcamData()">
+            <i class="bi bi-arrow-repeat"></i> Refresh
+        </button>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="webcamToggle" style="transform: scale(1.2);">
+            <label class="form-check-label ms-2" for="webcamToggle" id="webcamToggleLabel">Enable Camera</label>
+        </div>
+    </div>
+</div>
+
+<!-- Camera Status Banner -->
+<div id="cameraStatusBanner" class="alert alert-secondary d-flex align-items-center mb-4" role="alert">
+    <i class="bi bi-info-circle fs-4 me-3"></i>
+    <div class="flex-grow-1">
+        <strong id="cameraStatusText">Camera is disabled</strong>
+        <span class="mx-2">|</span>
+        <span id="cameraResolution">640x480</span>
+        <span class="mx-2">|</span>
+        <span id="cameraFPS">15 fps</span>
+    </div>
+</div>
+
+<!-- Webcam Tabs -->
+<ul class="nav nav-tabs nav-fill mb-4" id="webcamTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="live-tab" data-bs-toggle="tab" data-bs-target="#live" type="button">
+            <i class="bi bi-camera-video me-2"></i>Live View
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings" type="button">
+            <i class="bi bi-gear me-2"></i>Camera Settings
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="gallery-tab" data-bs-toggle="tab" data-bs-target="#gallery" type="button">
+            <i class="bi bi-images me-2"></i>Gallery
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="motion-tab" data-bs-toggle="tab" data-bs-target="#motion" type="button">
+            <i class="bi bi-activity me-2"></i>Motion Detection
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <!-- ==================== LIVE VIEW TAB ==================== -->
+    <div class="tab-pane fade show active" id="live" role="tabpanel">
+        <div class="row g-4">
+            <!-- Live Camera Feed -->
+            <div class="col-12 col-lg-8">
+                <div class="card">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-camera-video me-2"></i>Live Feed
+                        </h5>
+                        <div>
+                            <span class="badge bg-success me-2" id="streamStatus">Streaming</span>
+                            <button class="btn btn-sm btn-outline-primary" onclick="captureImage()">
+                                <i class="bi bi-camera"></i> Capture
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0 text-center bg-dark">
+                        <div id="liveFeed" class="position-relative" style="min-height: 400px;">
+                            <img id="cameraFeed" src="" alt="Camera Feed" class="img-fluid" style="display: none;">
+                            <div id="noFeedMessage" class="text-white d-flex flex-column align-items-center justify-content-center" style="min-height: 400px;">
+                                <i class="bi bi-camera-video-off fs-1 mb-3"></i>
+                                <h5>Camera is disabled</h5>
+                                <p class="text-muted">Enable the camera to see live feed</p>
+                            </div>
+                            <div id="motionOverlay" class="position-absolute top-0 end-0 m-3" style="display: none;">
+                                <span class="badge bg-danger">
+                                    <i class="bi bi-exclamation-triangle"></i> Motion Detected
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-white py-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <small class="text-muted">
+                                    <i class="bi bi-arrow-repeat"></i> 
+                                    <span id="streamUpdateTime">Updating...</span>
+                                </small>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-success" onclick="startRecording()" id="recordBtn">
+                                    <i class="bi bi-record-circle"></i> Start Recording
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Camera Info & Quick Actions -->
+            <div class="col-12 col-lg-4">
+                <div class="card mb-4">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0">
+                            <i class="bi bi-info-circle me-2"></i>Camera Info
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-borderless">
+                            <tr>
+                                <td class="text-muted">Model:</td>
+                                <td class="fw-bold">OV2640</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Resolution:</td>
+                                <td class="fw-bold" id="infoResolution">640x480</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">FPS:</td>
+                                <td class="fw-bold" id="infoFPS">15</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Quality:</td>
+                                <td class="fw-bold" id="infoQuality">80%</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Brightness:</td>
+                                <td class="fw-bold" id="infoBrightness">0</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Contrast:</td>
+                                <td class="fw-bold" id="infoContrast">0</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0">
+                            <i class="bi bi-lightning-charge me-2"></i>Quick Actions
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary" onclick="captureImage()">
+                                <i class="bi bi-camera"></i> Capture Photo
+                            </button>
+                            <button class="btn btn-outline-primary" onclick="toggleFullscreen()">
+                                <i class="bi bi-arrows-fullscreen"></i> Fullscreen
+                            </button>
+                            <button class="btn btn-outline-success" onclick="toggleMotion()" id="motionBtn">
+                                <i class="bi bi-activity"></i> Enable Motion Detection
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== SETTINGS TAB ==================== -->
+    <div class="tab-pane fade" id="settings" role="tabpanel">
+        <div class="row g-4">
+            <!-- Camera Settings -->
+            <div class="col-12 col-lg-6">
+                <div class="card">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0">
+                            <i class="bi bi-sliders2 me-2"></i>Image Settings
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="cameraSettingsForm">
+                            <div class="mb-3">
+                                <label class="form-label">Resolution</label>
+                                <select class="form-select" id="settingResolution">
+                                    <option value="1600x1200">1600x1200 (UXGA)</option>
+                                    <option value="1280x1024">1280x1024 (SXGA)</option>
+                                    <option value="1024x768">1024x768 (XGA)</option>
+                                    <option value="800x600">800x600 (SVGA)</option>
+                                    <option value="640x480" selected>640x480 (VGA)</option>
+                                    <option value="352x288">352x288 (CIF)</option>
+                                    <option value="320x240">320x240 (QVGA)</option>
+                                    <option value="176x144">176x144 (QCIF)</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Frame Rate (FPS)</label>
+                                <input type="range" class="form-range" id="settingFPS" min="1" max="60" value="15">
+                                <div class="d-flex justify-content-between">
+                                    <span>1 fps</span>
+                                    <span id="fpsValue">15 fps</span>
+                                    <span>60 fps</span>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">JPEG Quality</label>
+                                <input type="range" class="form-range" id="settingQuality" min="10" max="100" value="80">
+                                <div class="d-flex justify-content-between">
+                                    <span>10%</span>
+                                    <span id="qualityValue">80%</span>
+                                    <span>100%</span>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Brightness</label>
+                                <input type="range" class="form-range" id="settingBrightness" min="-2" max="2" value="0" step="1">
+                                <div class="d-flex justify-content-between">
+                                    <span>-2</span>
+                                    <span id="brightnessValue">0</span>
+                                    <span>+2</span>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Contrast</label>
+                                <input type="range" class="form-range" id="settingContrast" min="-2" max="2" value="0" step="1">
+                                <div class="d-flex justify-content-between">
+                                    <span>-2</span>
+                                    <span id="contrastValue">0</span>
+                                    <span>+2</span>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Saturation</label>
+                                <input type="range" class="form-range" id="settingSaturation" min="-2" max="2" value="0" step="1">
+                                <div class="d-flex justify-content-between">
+                                    <span>-2</span>
+                                    <span id="saturationValue">0</span>
+                                    <span>+2</span>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Sharpness</label>
+                                <input type="range" class="form-range" id="settingSharpness" min="-2" max="2" value="0" step="1">
+                                <div class="d-flex justify-content-between">
+                                    <span>-2</span>
+                                    <span id="sharpnessValue">0</span>
+                                    <span>+2</span>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Advanced Settings -->
+            <div class="col-12 col-lg-6">
+                <div class="card mb-4">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0">
+                            <i class="bi bi-toggles me-2"></i>Advanced Settings
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3 form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="settingFlipH">
+                            <label class="form-check-label" for="settingFlipH">Flip Horizontal</label>
+                        </div>
+
+                        <div class="mb-3 form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="settingFlipV">
+                            <label class="form-check-label" for="settingFlipV">Flip Vertical</label>
+                        </div>
+
+                        <div class="mb-3 form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="settingAWB" checked>
+                            <label class="form-check-label" for="settingAWB">Auto White Balance</label>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Exposure Compensation</label>
+                            <select class="form-select" id="settingExposure">
+                                <option value="-2">-2 (Dark)</option>
+                                <option value="-1">-1</option>
+                                <option value="0" selected>0 (Normal)</option>
+                                <option value="1">+1</option>
+                                <option value="2">+2 (Bright)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0">
+                            <i class="bi bi-arrow-repeat me-2"></i>Actions
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary" onclick="saveSettings()">
+                                <i class="bi bi-check-lg"></i> Apply Settings
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="resetSettings()">
+                                <i class="bi bi-arrow-counterclockwise"></i> Reset to Default
+                            </button>
+                            <button class="btn btn-outline-info" onclick="testSettings()">
+                                <i class="bi bi-camera"></i> Test with Capture
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== GALLERY TAB ==================== -->
+    <div class="tab-pane fade" id="gallery" role="tabpanel">
+        <div class="row g-4">
+            <!-- Latest Capture -->
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-camera me-2"></i>Latest Capture
+                        </h5>
+                        <button class="btn btn-sm btn-primary" onclick="captureImage()">
+                            <i class="bi bi-camera"></i> New Capture
+                        </button>
+                    </div>
+                    <div class="card-body text-center">
+                        <div id="latestCaptureContainer">
+                            <img id="latestCapture" src="" alt="Latest Capture" class="img-fluid rounded" style="max-height: 400px; display: none;">
+                            <div id="noCaptureMessage" class="py-5">
+                                <i class="bi bi-images fs-1 text-muted d-block mb-3"></i>
+                                <p class="text-muted">No captures yet</p>
+                                <button class="btn btn-primary" onclick="captureImage()">
+                                    <i class="bi bi-camera"></i> Take First Photo
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Capture History -->
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0">
+                            <i class="bi bi-clock-history me-2"></i>Capture History
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3" id="captureHistory">
+                            <!-- Populated by JavaScript -->
+                            <div class="col-12 text-center py-4">
+                                <div class="spinner-border text-primary" role="status"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MOTION DETECTION TAB ==================== -->
+    <div class="tab-pane fade" id="motion" role="tabpanel">
+        <div class="row g-4">
+            <!-- Motion Settings -->
+            <div class="col-12 col-lg-6">
+                <div class="card">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0">
+                            <i class="bi bi-sliders2 me-2"></i>Motion Detection Settings
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4 form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="motionEnable">
+                            <label class="form-check-label fw-bold" for="motionEnable">Enable Motion Detection</label>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Sensitivity</label>
+                            <input type="range" class="form-range" id="motionSensitivity" min="1" max="100" value="50">
+                            <div class="d-flex justify-content-between">
+                                <span>Low</span>
+                                <span id="sensitivityValue">50%</span>
+                                <span>High</span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="motionNotify">
+                            <label class="form-check-label">Send notification on motion</label>
+                        </div>
+
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="motionCapture">
+                            <label class="form-check-label">Auto-capture on motion</label>
+                        </div>
+
+                        <button class="btn btn-primary" onclick="saveMotionSettings()">
+                            <i class="bi bi-check-lg"></i> Apply Motion Settings
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Motion Events -->
+            <div class="col-12 col-lg-6">
+                <div class="card">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0">
+                            <i class="bi bi-activity me-2"></i>Recent Motion Events
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush" id="motionEvents">
+                            <div class="list-group-item text-center py-4 text-muted">
+                                No motion events detected
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Motion Zone -->
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0">
+                            <i class="bi bi-grid-3x3 me-2"></i>Motion Detection Zone
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center">
+                            <canvas id="motionZoneCanvas" width="640" height="480" class="border rounded" style="max-width: 100%; height: auto;"></canvas>
+                        </div>
+                        <p class="text-muted mt-2">Click and drag on the preview to set motion detection zone</p>
+                        <button class="btn btn-outline-secondary" onclick="resetMotionZone()">
+                            <i class="bi bi-arrow-counterclockwise"></i> Reset Zone
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Capture Preview Modal -->
+<div class="modal fade" id="captureModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-camera me-2"></i>Captured Image
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="modalCapture" src="" alt="Captured Image" class="img-fluid">
+                <p class="text-muted mt-2" id="modalCaptureInfo"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="downloadCapture()">
+                    <i class="bi bi-download"></i> Download
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Load Webcam script -->
+<script src="/js/webcam.js"></script>
+
+<style>
+#liveFeed {
+    background-color: #1a1a1a;
+    min-height: 400px;
+    position: relative;
+}
+
+#cameraFeed {
+    width: 100%;
+    height: auto;
+}
+
+.menu-option {
+    min-width: 60px;
+}
+
+.form-range {
+    width: 100%;
+}
+
+#motionZoneCanvas {
+    cursor: crosshair;
+    background-color: #f8f9fa;
+}
+
+@media (max-width: 767.98px) {
+    #liveFeed {
+        min-height: 250px;
+    }
+}
+</style>
