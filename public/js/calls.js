@@ -1,7 +1,7 @@
 // Calls page specific functionality with contacts integration
-(function() {
+(function () {
     'use strict';
-    
+
     console.log('Calls.js loaded - ' + new Date().toISOString());
 
     // State
@@ -21,13 +21,13 @@
 
     function init() {
         console.log('Initializing Calls page...');
-        
+
         // Load initial data
         loadCallLogs();
         loadContacts();
         loadStats();
         startCallStatusCheck();
-        
+
         // Attach event listeners
         attachDialerListeners();
         attachSearchAndFilter();
@@ -37,7 +37,7 @@
     // Load call logs
     function loadCallLogs(page = 1) {
         currentPage = page;
-        
+
         fetch(`/api/calls/logs?page=${page}&limit=10`)
             .then(response => response.json())
             .then(data => {
@@ -57,9 +57,9 @@
     function displayCallLogs(calls) {
         const tableBody = document.getElementById('callsTableBody');
         const mobileList = document.getElementById('callsMobileList');
-        
+
         if (!tableBody || !mobileList) return;
-        
+
         if (!calls || calls.length === 0) {
             const emptyHtml = `
                 <tr>
@@ -76,20 +76,21 @@
             mobileList.innerHTML = emptyHtml;
             return;
         }
-        
+
         // Desktop table view
         let tableHtml = '';
-        
+
         // Mobile cards view
         let mobileHtml = '';
-        
+
         calls.forEach(call => {
             const contact = findContactByNumber(call.phone_number);
             const contactName = contact ? contact.name : 'Unknown';
             const icon = getCallIcon(call.type, call.status);
             const statusClass = getStatusClass(call.status);
             const statusBadge = getStatusBadge(call.status);
-            
+            const statusText = getStatusText(call.status);
+
             // Table row
             tableHtml += `
                 <tr data-call-id="${call.id}">
@@ -103,14 +104,14 @@
                             </div>
                             <div>
                                 <div class="fw-bold">${contactName}</div>
-                                ${contact ? `<small class="text-muted">${contact.group_name || ''}</small>` : ''}
+                                ${contact && contact.company ? `<small class="text-muted">${contact.company}</small>` : ''}
                             </div>
                         </div>
                     </td>
                     <td>${call.phone_number}</td>
                     <td>${formatDate(call.start_time)}</td>
                     <td>${formatDuration(call.duration)}</td>
-                    <td><span class="badge ${statusBadge}">${getStatusText(call.status)}</span></td>
+                    <td><span class="badge ${statusBadge}">${statusText}</span></td>
                     <td>
                         <div class="btn-group btn-group-sm">
                             <button class="btn btn-outline-success" onclick="quickCall('${call.phone_number}')">
@@ -129,7 +130,7 @@
                     </td>
                 </tr>
             `;
-            
+
             // Mobile card
             mobileHtml += `
                 <div class="card mb-2" data-call-id="${call.id}">
@@ -148,7 +149,7 @@
                                 <p class="mb-1 small">${call.phone_number}</p>
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
-                                        <span class="badge ${statusBadge} me-2">${getStatusText(call.status)}</span>
+                                        <span class="badge ${statusBadge} me-2">${statusText}</span>
                                         <small class="text-muted">${formatDuration(call.duration)}</small>
                                     </div>
                                     <div class="btn-group btn-group-sm">
@@ -166,7 +167,7 @@
                 </div>
             `;
         });
-        
+
         tableBody.innerHTML = tableHtml;
         mobileList.innerHTML = mobileHtml;
     }
@@ -193,7 +194,7 @@
     function displayContacts() {
         const container = document.getElementById('contactsList');
         if (!container) return;
-        
+
         if (filteredContacts.length === 0) {
             container.innerHTML = `
                 <div class="text-center py-5">
@@ -206,7 +207,7 @@
             `;
             return;
         }
-        
+
         let html = '';
         filteredContacts.forEach(contact => {
             const favorite = contact.favorite ? '<i class="bi bi-star-fill text-warning ms-2"></i>' : '';
@@ -221,7 +222,7 @@
                         <div class="flex-grow-1">
                             <div class="d-flex justify-content-between">
                                 <h6 class="mb-1">${contact.name} ${favorite}</h6>
-                                <small class="text-muted">${contact.group_name}</small>
+                                ${contact.company ? `<small class="text-muted">${contact.company}</small>` : ''}
                             </div>
                             <p class="mb-1 small">${contact.phone_number}</p>
                             ${contact.email ? `<small class="text-muted">${contact.email}</small>` : ''}
@@ -238,9 +239,9 @@
                 </div>
             `;
         });
-        
+
         container.innerHTML = html;
-        
+
         // Add search listener
         const searchInput = document.getElementById('contactSearch');
         if (searchInput) {
@@ -253,9 +254,9 @@
     function displaySpeedDial() {
         const container = document.getElementById('speedDialGrid');
         if (!container) return;
-        
+
         const topContacts = contacts.filter(c => c.favorite).slice(0, 8);
-        
+
         if (topContacts.length === 0) {
             container.innerHTML = `
                 <div class="col-12 text-center py-4">
@@ -264,7 +265,7 @@
             `;
             return;
         }
-        
+
         let html = '';
         topContacts.forEach(contact => {
             html += `
@@ -277,7 +278,7 @@
                 </div>
             `;
         });
-        
+
         container.innerHTML = html;
     }
 
@@ -285,9 +286,9 @@
     function displayFavorites() {
         const container = document.getElementById('favoritesList');
         if (!container) return;
-        
+
         const favorites = contacts.filter(c => c.favorite);
-        
+
         if (favorites.length === 0) {
             container.innerHTML = `
                 <div class="list-group-item text-center py-4">
@@ -296,7 +297,7 @@
             `;
             return;
         }
-        
+
         let html = '';
         favorites.slice(0, 5).forEach(contact => {
             html += `
@@ -314,7 +315,7 @@
                 </div>
             `;
         });
-        
+
         container.innerHTML = html;
     }
 
@@ -322,14 +323,14 @@
     function displayQuickContacts() {
         const container = document.getElementById('quickContacts');
         if (!container) return;
-        
+
         const quickList = contacts.slice(0, 5);
-        
+
         if (quickList.length === 0) {
             container.innerHTML = '<small class="text-muted">No contacts available</small>';
             return;
         }
-        
+
         let html = '';
         quickList.forEach(contact => {
             html += `
@@ -339,7 +340,7 @@
                 </span>
             `;
         });
-        
+
         container.innerHTML = html;
     }
 
@@ -368,7 +369,7 @@
         const outgoing = calls.filter(c => c.type === 'outgoing').length;
         const incoming = calls.filter(c => c.type === 'incoming').length;
         const missed = calls.filter(c => c.status === 'missed').length;
-        
+
         document.getElementById('totalCalls').textContent = totalCalls;
         document.getElementById('outgoingCalls').textContent = outgoing;
         document.getElementById('incomingCalls').textContent = incoming;
@@ -388,7 +389,7 @@
     function attachDialerListeners() {
         // Dialer buttons
         document.querySelectorAll('.dialer-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
+            btn.addEventListener('click', function () {
                 const number = this.dataset.number;
                 appendToDialer(number);
             });
@@ -397,7 +398,7 @@
         // Clear button
         const clearBtn = document.getElementById('clearNumber');
         if (clearBtn) {
-            clearBtn.addEventListener('click', function() {
+            clearBtn.addEventListener('click', function () {
                 document.getElementById('dialerNumber').value = '';
                 document.getElementById('contactName').textContent = '';
             });
@@ -406,7 +407,7 @@
         // Make call button
         const makeCallBtn = document.getElementById('makeCall');
         if (makeCallBtn) {
-            makeCallBtn.addEventListener('click', function() {
+            makeCallBtn.addEventListener('click', function () {
                 const number = document.getElementById('dialerNumber').value;
                 if (number) {
                     makeCall(number);
@@ -421,19 +422,19 @@
     function appendToDialer(digit) {
         const input = document.getElementById('dialerNumber');
         input.value += digit;
-        
+
         // Try to find matching contact
         const number = input.value;
         const contact = findContactByNumber(number);
         const contactNameEl = document.getElementById('contactName');
-        
+
         if (contact) {
             contactNameEl.textContent = contact.name;
             contactNameEl.classList.add('text-success');
         } else {
             contactNameEl.textContent = '';
         }
-        
+
         updateNumberHint(number);
     }
 
@@ -441,7 +442,7 @@
     function updateNumberHint(number) {
         const hint = document.getElementById('numberHint');
         const digits = number.replace(/\D/g, '');
-        
+
         if (digits.length === 10) {
             hint.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i> Valid number';
         } else if (digits.length > 10) {
@@ -454,7 +455,7 @@
     // Make a call
     function makeCall(number) {
         const formattedNumber = formatNumber(number);
-        
+
         fetch('/api/calls/dial', {
             method: 'POST',
             headers: {
@@ -462,23 +463,23 @@
             },
             body: JSON.stringify({ number: formattedNumber })
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast('Call initiated', 'success');
-                showActiveCallBanner(formattedNumber, 'dialing');
-                
-                // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('dialerModal'));
-                if (modal) modal.hide();
-            } else {
-                showToast(data.message || 'Failed to make call', 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error making call:', error);
-            showToast('Error making call', 'danger');
-        });
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Call initiated', 'success');
+                    showActiveCallBanner(formattedNumber, 'dialing');
+
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('dialerModal'));
+                    if (modal) modal.hide();
+                } else {
+                    showToast(data.message || 'Failed to make call', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error making call:', error);
+                showToast('Error making call', 'danger');
+            });
     }
 
     // End call
@@ -486,46 +487,144 @@
         fetch('/api/calls/end', {
             method: 'POST'
         })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Call ended', 'info');
+                    hideActiveCallBanner();
+                    loadCallLogs(currentPage);
+                }
+            })
+            .catch(error => {
+                console.error('Error ending call:', error);
+            });
+    }
+
+window.muteCall = function () {
+    const muteBtn = document.querySelector('button[onclick="muteCall()"]');
+    const isMuted = muteBtn.classList.contains('active');
+
+    fetch('/api/calls/mute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mute: !isMuted })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (!isMuted) {
+                muteBtn.classList.add('active', 'btn-success');
+                muteBtn.classList.remove('btn-outline-success');
+                muteBtn.innerHTML = '<i class="bi bi-mic-mute"></i> Unmute';
+                showToast('Microphone muted', 'warning');
+            } else {
+                muteBtn.classList.remove('active', 'btn-success');
+                muteBtn.classList.add('btn-outline-success');
+                muteBtn.innerHTML = '<i class="bi bi-mic-mute"></i> Mute';
+                showToast('Microphone unmuted', 'info');
+            }
+        } else {
+            showToast(data.message || 'Failed to toggle mute', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error toggling mute:', error);
+        showToast('Error toggling mute', 'danger');
+    });
+};
+
+window.holdCall = function () {
+    const holdBtn = document.querySelector('button[onclick="holdCall()"]');
+    const isOnHold = holdBtn.classList.contains('active');
+
+    fetch('/api/calls/hold', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hold: !isOnHold })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (!isOnHold) {
+                holdBtn.classList.add('active', 'btn-warning');
+                holdBtn.classList.remove('btn-outline-primary');
+                holdBtn.innerHTML = '<i class="bi bi-pause"></i> Resume';
+                showToast('Call on hold', 'info');
+            } else {
+                holdBtn.classList.remove('active', 'btn-warning');
+                holdBtn.classList.add('btn-outline-primary');
+                holdBtn.innerHTML = '<i class="bi bi-pause"></i> Hold';
+                showToast('Call resumed', 'info');
+            }
+        } else {
+            showToast(data.message || 'Failed to toggle hold', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error toggling hold:', error);
+        showToast('Error toggling hold', 'danger');
+    });
+};
+
+window.quickCall = function (number) {
+    if (!number) return;
+
+    // Use SweetAlert2 or Bootstrap modal for better UX
+    if (confirm(`Call ${number}?`)) {
+        const callBtn = event?.target?.closest('button');
+        const originalHtml = callBtn?.innerHTML;
+        
+        if (callBtn) {
+            callBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+            callBtn.disabled = true;
+        }
+
+        fetch('/api/calls/dial', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ number: number })
+        })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showToast('Call ended', 'info');
-                hideActiveCallBanner();
-                loadCallLogs(currentPage);
+                showToast('Call initiated', 'success');
+                // Close any open modals
+                const dialerModal = bootstrap.Modal.getInstance(document.getElementById('dialerModal'));
+                if (dialerModal) dialerModal.hide();
+                
+                // Start checking call status
+                startCallStatusCheck();
+            } else {
+                showToast(data.message || 'Failed to make call', 'danger');
             }
         })
         .catch(error => {
-            console.error('Error ending call:', error);
+            console.error('Error making call:', error);
+            showToast('Error making call', 'danger');
+        })
+        .finally(() => {
+            if (callBtn) {
+                callBtn.innerHTML = originalHtml;
+                callBtn.disabled = false;
+            }
         });
     }
+};
 
-    // Mute call
-    function muteCall() {
-        showToast('Mute toggled', 'info');
-    }
+    window.quickSms = function (number) {
+        if (!number) return;
 
-    // Hold call
-    function holdCall() {
-        showToast('Call on hold', 'info');
-    }
-
-    // Quick call
-    function quickCall(number) {
-        if (confirm(`Call ${number}?`)) {
-            makeCall(number);
-        }
-    }
-
-    // Quick SMS
-    function quickSms(number) {
-        window.location.href = `/sms?to=${encodeURIComponent(number)}`;
-    }
+        // Open compose modal with number pre-filled
+        document.getElementById('modalTo').value = number;
+        const modal = new bootstrap.Modal(document.getElementById('composeSmsModal'));
+        modal.show();
+    };
 
     // Show active call banner
     function showActiveCallBanner(number, status, duration = 0) {
         const banner = document.getElementById('activeCallBanner');
         if (!banner) return;
-        
+
         banner.classList.remove('d-none');
         document.getElementById('activeCallNumber').textContent = number;
         document.getElementById('activeCallStatus').textContent = getStatusText(status);
@@ -562,24 +661,24 @@
     // Delete call log
     function deleteCallLog(id) {
         if (!confirm('Delete this call record?')) return;
-        
+
         fetch(`/api/calls/logs/${id}`, {
             method: 'DELETE'
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast('Call log deleted', 'success');
-                loadCallLogs(currentPage);
-            }
-        })
-        .catch(console.error);
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Call log deleted', 'success');
+                    loadCallLogs(currentPage);
+                }
+            })
+            .catch(console.error);
     }
 
     // Clear all calls
     function clearAllCalls() {
         if (!confirm('Delete all call logs? This cannot be undone.')) return;
-        
+
         // This would need a bulk delete endpoint
         showToast('Feature coming soon', 'info');
     }
@@ -594,15 +693,15 @@
         const searchInput = document.getElementById('searchCalls');
         const filterSelect = document.getElementById('filterCallType');
         const sortSelect = document.getElementById('sortCalls');
-        
+
         if (searchInput) {
             searchInput.addEventListener('input', debounce(filterCalls, 300));
         }
-        
+
         if (filterSelect) {
             filterSelect.addEventListener('change', filterCalls);
         }
-        
+
         if (sortSelect) {
             sortSelect.addEventListener('change', sortCalls);
         }
@@ -612,14 +711,14 @@
     function filterCalls() {
         const searchTerm = document.getElementById('searchCalls')?.value.toLowerCase() || '';
         const filterType = document.getElementById('filterCallType')?.value || 'all';
-        
+
         document.querySelectorAll('#callsTableBody tr, #callsMobileList .card').forEach(item => {
             const text = item.textContent.toLowerCase();
             const type = item.querySelector('.call-type')?.dataset.type || '';
-            
+
             const matchesSearch = text.includes(searchTerm);
             const matchesFilter = filterType === 'all' || text.includes(filterType);
-            
+
             if (matchesSearch && matchesFilter) {
                 item.style.display = '';
             } else {
@@ -634,28 +733,39 @@
         // Implementation depends on your data structure
     }
 
-    // Filter contacts by group
-    function filterContactsByGroup(group) {
-        if (!group) {
+    window.filterContactsByCompany = function (company) {
+        if (!company) {
             filteredContacts = contacts;
         } else {
-            filteredContacts = contacts.filter(c => c.group_name === group);
+            filteredContacts = contacts.filter(c => c.company === company);
         }
         displayContacts();
-    }
+
+        // Update active badge
+        document.querySelectorAll('#contactCompanyFilters .badge').forEach(badge => {
+            badge.classList.remove('bg-primary');
+            badge.classList.add('bg-secondary');
+        });
+
+        const activeBadge = event?.target;
+        if (activeBadge) {
+            activeBadge.classList.remove('bg-secondary');
+            activeBadge.classList.add('bg-primary');
+        }
+    };
 
     // Filter contacts by search
     function filterContacts() {
         const searchTerm = document.getElementById('contactSearch')?.value.toLowerCase() || '';
-        const group = document.getElementById('modalContactGroup')?.value || '';
-        
+        const company = document.getElementById('modalContactCompany')?.value || '';
+
         filteredContacts = contacts.filter(c => {
-            const matchesSearch = c.name.toLowerCase().includes(searchTerm) || 
-                                c.phone_number.includes(searchTerm);
-            const matchesGroup = !group || c.group_name === group;
-            return matchesSearch && matchesGroup;
+            const matchesSearch = c.name.toLowerCase().includes(searchTerm) ||
+                c.phone_number.includes(searchTerm);
+            const matchesCompany = !company || c.company === company;
+            return matchesSearch && matchesCompany;
         });
-        
+
         displayContacts();
     }
 
@@ -666,38 +776,38 @@
         if (saveBtn) {
             saveBtn.addEventListener('click', saveContact);
         }
-        
+
         // Delete contact button
         const deleteBtn = document.getElementById('deleteContactBtn');
         if (deleteBtn) {
             deleteBtn.addEventListener('click', deleteContact);
         }
-        
+
         // Contacts modal search
         const modalSearch = document.getElementById('modalContactSearch');
         if (modalSearch) {
             modalSearch.addEventListener('input', debounce(filterModalContacts, 300));
         }
-        
-        // Contacts modal group filter
-        const modalGroup = document.getElementById('modalContactGroup');
-        if (modalGroup) {
-            modalGroup.addEventListener('change', filterModalContacts);
+
+        // Contacts modal company filter
+        const modalCompany = document.getElementById('modalContactCompany');
+        if (modalCompany) {
+            modalCompany.addEventListener('change', filterModalContacts);
         }
     }
 
     // Filter modal contacts
     function filterModalContacts() {
         const searchTerm = document.getElementById('modalContactSearch')?.value.toLowerCase() || '';
-        const group = document.getElementById('modalContactGroup')?.value || '';
-        
+        const company = document.getElementById('modalContactCompany')?.value || '';
+
         const filtered = contacts.filter(c => {
-            const matchesSearch = c.name.toLowerCase().includes(searchTerm) || 
-                                c.phone_number.includes(searchTerm);
-            const matchesGroup = !group || c.group_name === group;
-            return matchesSearch && matchesGroup;
+            const matchesSearch = c.name.toLowerCase().includes(searchTerm) ||
+                c.phone_number.includes(searchTerm);
+            const matchesCompany = !company || c.company === company;
+            return matchesSearch && matchesCompany;
         });
-        
+
         displayModalContacts(filtered);
     }
 
@@ -705,12 +815,12 @@
     function displayModalContacts(contactsList) {
         const container = document.getElementById('modalContactsList');
         if (!container) return;
-        
+
         if (contactsList.length === 0) {
             container.innerHTML = '<div class="text-center py-4">No contacts found</div>';
             return;
         }
-        
+
         let html = '';
         contactsList.forEach(contact => {
             html += `
@@ -735,20 +845,23 @@
                 </div>
             `;
         });
-        
+
         container.innerHTML = html;
     }
 
-    // Show add contact modal
-    function showAddContactModal() {
+    window.showAddContactModal = function (phoneNumber = '') {
         document.getElementById('contactModalTitle').textContent = 'Add New Contact';
         document.getElementById('contactId').value = '';
         document.getElementById('contactForm').reset();
         document.getElementById('deleteContactBtn').classList.add('d-none');
-        
+
+        if (phoneNumber) {
+            document.getElementById('contactPhone').value = phoneNumber;
+        }
+
         const modal = new bootstrap.Modal(document.getElementById('addContactModal'));
         modal.show();
-    }
+    };
 
     // Edit contact
     function editContact(id) {
@@ -762,13 +875,12 @@
                     document.getElementById('contactPhone').value = contact.phone_number;
                     document.getElementById('contactEmail').value = contact.email || '';
                     document.getElementById('contactCompany').value = contact.company || '';
-                    document.getElementById('contactGroup').value = contact.group_name || 'general';
                     document.getElementById('contactFavorite').checked = contact.favorite === 1;
                     document.getElementById('contactNotes').value = contact.notes || '';
-                    
+
                     document.getElementById('contactModalTitle').textContent = 'Edit Contact';
                     document.getElementById('deleteContactBtn').classList.remove('d-none');
-                    
+
                     const modal = new bootstrap.Modal(document.getElementById('addContactModal'));
                     modal.show();
                 }
@@ -795,19 +907,18 @@
             phone_number: document.getElementById('contactPhone').value,
             email: document.getElementById('contactEmail').value,
             company: document.getElementById('contactCompany').value,
-            group_name: document.getElementById('contactGroup').value,
             favorite: document.getElementById('contactFavorite').checked,
             notes: document.getElementById('contactNotes').value
         };
-        
+
         if (!data.name || !data.phone_number) {
             showToast('Name and phone number are required', 'warning');
             return;
         }
-        
+
         const url = id ? `/api/contacts/${id}` : '/api/contacts';
         const method = id ? 'PUT' : 'POST';
-        
+
         fetch(url, {
             method: method,
             headers: {
@@ -815,46 +926,46 @@
             },
             body: JSON.stringify(data)
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast(id ? 'Contact updated' : 'Contact created', 'success');
-                
-                // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('addContactModal'));
-                if (modal) modal.hide();
-                
-                // Reload contacts
-                loadContacts();
-            } else {
-                showToast('Failed to save contact', 'danger');
-            }
-        })
-        .catch(console.error);
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(id ? 'Contact updated' : 'Contact created', 'success');
+
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('addContactModal'));
+                    if (modal) modal.hide();
+
+                    // Reload contacts
+                    loadContacts();
+                } else {
+                    showToast('Failed to save contact', 'danger');
+                }
+            })
+            .catch(console.error);
     }
 
     // Delete contact
     function deleteContact() {
         const id = document.getElementById('contactId').value;
         if (!id || !confirm('Delete this contact?')) return;
-        
+
         fetch(`/api/contacts/${id}`, {
             method: 'DELETE'
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast('Contact deleted', 'success');
-                
-                // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('addContactModal'));
-                if (modal) modal.hide();
-                
-                // Reload contacts
-                loadContacts();
-            }
-        })
-        .catch(console.error);
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Contact deleted', 'success');
+
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('addContactModal'));
+                    if (modal) modal.hide();
+
+                    // Reload contacts
+                    loadContacts();
+                }
+            })
+            .catch(console.error);
     }
 
     // Select contact for dialer
@@ -877,12 +988,12 @@
     function updatePagination(pagination) {
         currentPage = pagination.page;
         totalPages = pagination.pages;
-        
+
         const container = document.getElementById('callsPagination');
         if (!container) return;
-        
+
         let html = '';
-        
+
         // Previous
         html += `
             <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
@@ -891,7 +1002,7 @@
                 </a>
             </li>
         `;
-        
+
         // Pages
         for (let i = 1; i <= pagination.pages; i++) {
             if (i === 1 || i === pagination.pages || (i >= currentPage - 2 && i <= currentPage + 2)) {
@@ -904,7 +1015,7 @@
                 html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
             }
         }
-        
+
         // Next
         html += `
             <li class="page-item ${currentPage === pagination.pages ? 'disabled' : ''}">
@@ -913,7 +1024,7 @@
                 </a>
             </li>
         `;
-        
+
         container.innerHTML = html;
     }
 
@@ -938,7 +1049,7 @@
     }
 
     function getStatusClass(status) {
-        switch(status) {
+        switch (status) {
             case 'missed': return 'text-danger';
             case 'answered': return 'text-success';
             case 'rejected': return 'text-warning';
@@ -947,7 +1058,7 @@
     }
 
     function getStatusBadge(status) {
-        switch(status) {
+        switch (status) {
             case 'missed': return 'bg-danger';
             case 'answered': return 'bg-success';
             case 'rejected': return 'bg-warning';
@@ -981,17 +1092,17 @@
         const date = new Date(dateString);
         const now = new Date();
         const diff = now - date;
-        
+
         if (diff < 24 * 60 * 60 * 1000 && date.getDate() === now.getDate()) {
             return `Today, ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
         }
-        
+
         const yesterday = new Date(now);
         yesterday.setDate(yesterday.getDate() - 1);
         if (date.getDate() === yesterday.getDate() && date.getMonth() === yesterday.getMonth()) {
             return `Yesterday, ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
         }
-        
+
         return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
     }
 
@@ -1009,14 +1120,14 @@
 
     function debounce(func, wait) {
         let timeout;
-        return function(...args) {
+        return function (...args) {
             clearTimeout(timeout);
             timeout = setTimeout(() => func.apply(this, args), wait);
         };
     }
 
     // Clean up
-    window.addEventListener('beforeunload', function() {
+    window.addEventListener('beforeunload', function () {
         if (callStatusInterval) {
             clearInterval(callStatusInterval);
         }
@@ -1032,7 +1143,7 @@
     window.deleteCallLog = deleteCallLog;
     window.clearAllCalls = clearAllCalls;
     window.refreshCalls = refreshCalls;
-    window.filterContactsByGroup = filterContactsByGroup;
+    window.filterContactsByCompany = filterContactsByCompany;
     window.editContact = editContact;
     window.editContactFromNumber = editContactFromNumber;
     window.showAddContactModal = showAddContactModal;

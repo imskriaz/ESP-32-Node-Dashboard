@@ -77,6 +77,7 @@ async function initializeDatabase() {
             CREATE INDEX IF NOT EXISTS idx_calls_status ON calls(status);
         `);
 
+        // Create contacts table - REMOVED group_name field
         await db.exec(`
             CREATE TABLE IF NOT EXISTS contacts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -114,44 +115,67 @@ async function initializeDatabase() {
                 expires DATETIME NOT NULL
             )
         `);
+
         // Add USSD table
         await db.exec(`
-    CREATE TABLE IF NOT EXISTS ussd (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        code TEXT NOT NULL,
-        description TEXT,
-        response TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        status TEXT DEFAULT 'success',
-        type TEXT DEFAULT 'balance' -- balance, offer, support, etc.
-    )
-`);
+            CREATE TABLE IF NOT EXISTS ussd (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT NOT NULL,
+                description TEXT,
+                response TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                status TEXT DEFAULT 'success',
+                type TEXT DEFAULT 'balance'
+            )
+        `);
 
         // Add indexes for USSD table
         await db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_ussd_timestamp ON ussd(timestamp);
-    CREATE INDEX IF NOT EXISTS idx_ussd_type ON ussd(type);
-`);
+            CREATE INDEX IF NOT EXISTS idx_ussd_timestamp ON ussd(timestamp);
+            CREATE INDEX IF NOT EXISTS idx_ussd_type ON ussd(type);
+        `);
 
-        // Insert mock USSD history
-        const ussdCount = await db.get('SELECT COUNT(*) as count FROM ussd');
-        if (ussdCount.count === 0) {
-            const mockUssd = [
-                ['*121#', 'Check Balance', 'Your current balance is BDT 125.50. Valid until 2026-03-15', 'balance'],
-                ['*121*3#', 'Data Balance', 'You have 2.3GB data remaining out of 5GB. Valid until 2026-02-28', 'data'],
-                ['*121*2#', 'Check Minutes', 'You have 125 minutes remaining', 'minutes'],
-                ['*121*1#', 'Check SMS', 'You have 500 SMS remaining', 'sms'],
-                ['*500#', 'Special Offers', 'Special offer: 10GB for BDT 299. Dial *121*50# to subscribe', 'offer']
-            ];
+        // Add webcam table
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS webcam (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT DEFAULT 'ESP32-CAM',
+                enabled BOOLEAN DEFAULT 0,
+                resolution TEXT DEFAULT '640x480',
+                fps INTEGER DEFAULT 15,
+                quality INTEGER DEFAULT 80,
+                brightness INTEGER DEFAULT 0,
+                contrast INTEGER DEFAULT 0,
+                saturation INTEGER DEFAULT 0,
+                sharpness INTEGER DEFAULT 0,
+                flip_horizontal BOOLEAN DEFAULT 0,
+                flip_vertical BOOLEAN DEFAULT 0,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_frame BLOB,
+                motion_detection BOOLEAN DEFAULT 0,
+                motion_sensitivity INTEGER DEFAULT 50,
+                recording BOOLEAN DEFAULT 0,
+                stream_url TEXT,
+                settings JSON
+            )
+        `);
 
-            for (const ussd of mockUssd) {
-                await db.run(`
-            INSERT INTO ussd (code, description, response, type, timestamp) 
-            VALUES (?, ?, ?, ?, datetime('now', '-' || (abs(random() % 10)) || ' days'))
-        `, ussd);
-            }
-            logger.info('Mock USSD data inserted');
-        }
+        // Add USSD settings table
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS ussd_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                service_key TEXT UNIQUE NOT NULL,
+                service_name TEXT NOT NULL,
+                ussd_code TEXT NOT NULL,
+                description TEXT,
+                icon TEXT,
+                enabled BOOLEAN DEFAULT 1,
+                sort_order INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
         // Check if admin user exists
         const adminUser = await db.get('SELECT * FROM users WHERE username = ?', [process.env.ADMIN_USERNAME || 'admin']);
         if (!adminUser) {
@@ -170,76 +194,15 @@ async function initializeDatabase() {
             logger.info('Default admin user created');
         }
 
-
-        // Add webcam table
-        await db.exec(`
-    CREATE TABLE IF NOT EXISTS webcam (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT DEFAULT 'ESP32-CAM',
-        enabled BOOLEAN DEFAULT 0,
-        resolution TEXT DEFAULT '640x480',
-        fps INTEGER DEFAULT 15,
-        quality INTEGER DEFAULT 80,
-        brightness INTEGER DEFAULT 0,
-        contrast INTEGER DEFAULT 0,
-        saturation INTEGER DEFAULT 0,
-        sharpness INTEGER DEFAULT 0,
-        flip_horizontal BOOLEAN DEFAULT 0,
-        flip_vertical BOOLEAN DEFAULT 0,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        last_frame BLOB,
-        motion_detection BOOLEAN DEFAULT 0,
-        motion_sensitivity INTEGER DEFAULT 50,
-        recording BOOLEAN DEFAULT 0,
-        stream_url TEXT,
-        settings JSON
-    )
-`);
-
         // Insert default webcam settings
         const webcamCount = await db.get('SELECT COUNT(*) as count FROM webcam');
         if (webcamCount.count === 0) {
             await db.run(`
-        INSERT INTO webcam (name, enabled, resolution, fps, quality) 
-        VALUES (?, ?, ?, ?, ?)
-    `, ['ESP32-CAM', 0, '640x480', 15, 80]);
+                INSERT INTO webcam (name, enabled, resolution, fps, quality) 
+                VALUES (?, ?, ?, ?, ?)
+            `, ['ESP32-CAM', 0, '640x480', 15, 80]);
             logger.info('Default webcam settings inserted');
         }
-
-        // Insert mock SMS data if none exists
-        const smsCount = await db.get('SELECT COUNT(*) as count FROM sms');
-        if (smsCount.count === 0) {
-            const mockSms = [
-                ['+8801712345678', null, 'Your Robi balance is BDT 125.50. Valid until 2026-03-15', '2026-02-14 10:30:00', 0],
-                ['+8801812345678', null, 'Special offer: 10GB for BDT 299. Dial *121*3# to subscribe', '2026-02-14 07:30:00', 1],
-                ['+8801912345678', null, 'Your data pack expires in 2 days. Recharge now to continue', '2026-02-13 14:20:00', 1],
-                ['+8801712345678', null, 'Welcome to Robi 4G network! Enjoy high-speed internet', '2026-02-12 09:15:00', 1],
-                ['+8801812345678', null, 'Internet pack activated: 5GB for 7 days', '2026-02-10 16:45:00', 1]
-            ];
-
-            for (const sms of mockSms) {
-                await db.run(
-                    'INSERT INTO sms (from_number, to_number, message, timestamp, read) VALUES (?, ?, ?, ?, ?)',
-                    sms
-                );
-            }
-            logger.info('Mock SMS data inserted');
-        }
-        // Add USSD settings table
-        await db.exec(`
-    CREATE TABLE IF NOT EXISTS ussd_settings (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        service_key TEXT UNIQUE NOT NULL,
-        service_name TEXT NOT NULL,
-        ussd_code TEXT NOT NULL,
-        description TEXT,
-        icon TEXT,
-        enabled BOOLEAN DEFAULT 1,
-        sort_order INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-`);
 
         // Insert default USSD settings
         const settingsCount = await db.get('SELECT COUNT(*) as count FROM ussd_settings');
@@ -259,63 +222,11 @@ async function initializeDatabase() {
 
             for (const setting of defaultSettings) {
                 await db.run(`
-            INSERT INTO ussd_settings (service_key, service_name, ussd_code, description, icon, enabled, sort_order) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `, setting);
+                    INSERT INTO ussd_settings (service_key, service_name, ussd_code, description, icon, enabled, sort_order) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `, setting);
             }
             logger.info('Default USSD settings inserted');
-        }
-        // Insert mock call data if none exists - FIXED: Using proper date calculations
-        const callCount = await db.get('SELECT COUNT(*) as count FROM calls');
-        if (callCount.count === 0) {
-            // Calculate timestamps manually
-            const now = new Date();
-
-            const twoHoursAgo = new Date(now.getTime() - (2 * 60 * 60 * 1000)).toISOString();
-            const fiveHoursAgo = new Date(now.getTime() - (5 * 60 * 60 * 1000)).toISOString();
-            const oneDayAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000)).toISOString();
-            const twoDaysAgo = new Date(now.getTime() - (48 * 60 * 60 * 1000)).toISOString();
-            const threeDaysAgo = new Date(now.getTime() - (72 * 60 * 60 * 1000)).toISOString();
-
-            const mockCalls = [
-                ['+8801712345678', 'John Doe', 'incoming', 'answered', 125, twoHoursAgo],
-                ['+8801812345678', 'Jane Smith', 'outgoing', 'answered', 45, fiveHoursAgo],
-                ['+8801912345678', null, 'incoming', 'missed', 0, oneDayAgo],
-                ['+8801712345678', 'John Doe', 'outgoing', 'answered', 320, twoDaysAgo],
-                ['+8801612345678', 'Support', 'incoming', 'answered', 180, threeDaysAgo]
-            ];
-
-            for (const call of mockCalls) {
-                await db.run(`
-                    INSERT INTO calls (phone_number, contact_name, type, status, duration, start_time) 
-                    VALUES (?, ?, ?, ?, ?, ?)
-                `, call);
-            }
-            logger.info('Mock call data inserted');
-        }
-
-        const contactCount = await db.get('SELECT COUNT(*) as count FROM contacts');
-        if (contactCount.count === 0) {
-            const mockContacts = [
-                ['John Doe', '+8801712345678', 'john@example.com', 'Acme Inc', 1, 'CEO'],
-                ['Jane Smith', '+8801812345678', 'jane@example.com', 'Tech Solutions', 1, 'CTO'],
-                ['Mike Johnson', '+8801912345678', 'mike@example.com', null, 1, 'Brother'],
-                ['Sarah Williams', '+8801612345678', 'sarah@example.com', 'Design Studio', 0, 'Designer'],
-                ['Support Center', '121', 'support@robiaxiata.com', 'Robi', 1, 'Customer Support'],
-                ['Emergency', '999', null, null, 1, 'Emergency Services'],
-                ['Mother', '+8801711122334', null, null, 1, 'Mom'],
-                ['Father', '+8801811122334', null, null, 1, 'Dad'],
-                ['Office', '+8801966688888', 'office@company.com', 'My Company', 1, 'Main Office'],
-                ['Doctor', '+8801777788888', 'dr.smith@clinic.com', 'City Hospital', 0, 'Family Doctor']
-            ];
-
-            for (const contact of mockContacts) {
-                await db.run(`
-            INSERT INTO contacts (name, phone_number, email, company, favorite, notes) 
-            VALUES (?, ?, ?, ?, ?, ?)
-        `, contact);
-            }
-            logger.info('Mock contacts data inserted');
         }
 
         logger.info('Database initialized successfully');

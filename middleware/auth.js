@@ -1,3 +1,4 @@
+// middleware/auth.js
 const logger = require('../utils/logger');
 
 /**

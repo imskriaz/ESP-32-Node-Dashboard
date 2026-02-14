@@ -284,12 +284,23 @@ router.patch('/:id/favorite', async (req, res) => {
         const { favorite } = req.body;
         const db = req.app.locals.db;
 
+        // Check if contact exists
+        const existing = await db.get('SELECT * FROM contacts WHERE id = ?', [id]);
+        if (!existing) {
+            return res.status(404).json({
+                success: false,
+                message: 'Contact not found'
+            });
+        }
+
         await db.run(
             'UPDATE contacts SET favorite = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
             [favorite ? 1 : 0, id]
         );
 
         const updatedContact = await db.get('SELECT * FROM contacts WHERE id = ?', [id]);
+
+        logger.info(`Contact ${id} favorite toggled to ${favorite}`);
 
         res.json({
             success: true,
@@ -300,8 +311,7 @@ router.patch('/:id/favorite', async (req, res) => {
         logger.error('API toggle favorite error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to update favorite status',
-            error: error.message
+            message: 'Failed to update favorite status'
         });
     }
 });

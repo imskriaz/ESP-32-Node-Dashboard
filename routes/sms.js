@@ -7,6 +7,10 @@ const logger = require('../utils/logger');
 router.get('/', async (req, res) => {
     try {
         const db = req.app.locals.db;
+        if (!db) {
+            throw new Error('Database not available');
+        }
+
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const offset = (page - 1) * limit;
@@ -33,7 +37,7 @@ router.get('/', async (req, res) => {
         logger.error('API SMS list error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to fetch SMS messages'
+            message: 'Failed to fetch SMS messages: ' + error.message
         });
     }
 });
@@ -42,6 +46,10 @@ router.get('/', async (req, res) => {
 router.get('/unread', async (req, res) => {
     try {
         const db = req.app.locals.db;
+        if (!db) {
+            throw new Error('Database not available');
+        }
+
         const result = await db.get(`
             SELECT COUNT(*) as count FROM sms 
             WHERE read = 0 AND type = 'incoming'
@@ -55,7 +63,7 @@ router.get('/unread', async (req, res) => {
         logger.error('API unread count error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to fetch unread count'
+            message: 'Failed to fetch unread count: ' + error.message
         });
     }
 });
@@ -78,53 +86,79 @@ router.post('/send', [
 
         const { to, message } = req.body;
         const db = req.app.locals.db;
+        
+        if (!db) {
+            throw new Error('Database not available');
+        }
 
-        // Format phone number (ensure it has country code)
+        // Format phone number
         let formattedNumber = to;
         if (!to.startsWith('+')) {
-            // Remove any non-digit characters
-            const digits = to.replace(/\D/g, '');
-            if (digits.length === 10) {
-                formattedNumber = '+88' + digits; // Bangladesh country code
-            } else if (digits.length === 11 && digits.startsWith('0')) {
-                formattedNumber = '+88' + digits.substring(1);
-            } else {
-                formattedNumber = '+' + digits;
+            try {
+                const digits = to.replace(/\D/g, '');
+                if (digits.length === 10) {
+                    formattedNumber = '+88' + digits;
+                } else if (digits.length === 11 && digits.startsWith('0')) {
+                    formattedNumber = '+88' + digits.substring(1);
+                } else {
+                    formattedNumber = '+' + digits;
+                }
+            } catch (formatError) {
+                logger.error('Phone number formatting error:', formatError);
+                formattedNumber = to;
             }
         }
 
-        logger.info(`Sending SMS to ${formattedNumber}: ${message.substring(0, 30)}...`);
+        logger.info(`Sending SMS to ${formattedNumber}`);
 
         // Save to database
         const result = await db.run(`
             INSERT INTO sms (from_number, to_number, message, type, status, timestamp) 
-            VALUES (?, ?, ?, 'outgoing', 'sent', CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, 'outgoing', 'sending', CURRENT_TIMESTAMP)
         `, [formattedNumber, formattedNumber, message]);
 
-        // Emit socket event for real-time updates
-        if (req.io) {
-            req.io.emit('sms:sent', {
-                id: result.lastID,
-                to: formattedNumber,
-                message,
-                timestamp: new Date().toISOString()
-            });
+        // Send via MQTT if connected
+        if (global.mqttService && global.mqttService.connected) {
+            try {
+                const mqttResult = await global.mqttService.sendSms('esp32-s3-1', formattedNumber, message);
+                
+                if (mqttResult.success) {
+                    await db.run(
+                        'UPDATE sms SET status = ? WHERE id = ?',
+                        ['sent', result.lastID]
+                    );
+                } else {
+                    await db.run(
+                        'UPDATE sms SET status = ?, error = ? WHERE id = ?',
+                        ['failed', mqttResult.error || 'MQTT error', result.lastID]
+                    );
+                }
+            } catch (mqttError) {
+                logger.error('MQTT error sending SMS:', mqttError);
+                await db.run(
+                    'UPDATE sms SET status = ?, error = ? WHERE id = ?',
+                    ['failed', mqttError.message, result.lastID]
+                );
+            }
         }
 
-        // Simulate SMS delivery (in real app, this would be from the modem)
-        setTimeout(() => {
+        // Emit socket event
+        try {
             if (req.io) {
-                req.io.emit('sms:delivered', {
+                req.io.emit('sms:sent', {
                     id: result.lastID,
                     to: formattedNumber,
-                    status: 'delivered'
+                    message,
+                    timestamp: new Date().toISOString()
                 });
             }
-        }, 2000);
+        } catch (socketError) {
+            logger.error('Error emitting socket event:', socketError);
+        }
 
         res.json({
             success: true,
-            message: 'SMS sent successfully',
+            message: 'SMS sent',
             id: result.lastID,
             to: formattedNumber
         });
@@ -132,8 +166,7 @@ router.post('/send', [
         logger.error('API send SMS error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to send SMS',
-            error: error.message
+            message: 'Failed to send SMS: ' + error.message
         });
     }
 });
@@ -143,6 +176,10 @@ router.delete('/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const db = req.app.locals.db;
+        
+        if (!db) {
+            throw new Error('Database not available');
+        }
 
         const result = await db.run('DELETE FROM sms WHERE id = ?', [id]);
 
@@ -156,8 +193,12 @@ router.delete('/:id', async (req, res) => {
         logger.info(`SMS deleted: ${id}`);
 
         // Emit socket event
-        if (req.io) {
-            req.io.emit('sms:deleted', { id });
+        try {
+            if (req.io) {
+                req.io.emit('sms:deleted', { id });
+            }
+        } catch (socketError) {
+            logger.error('Error emitting socket event:', socketError);
         }
 
         res.json({
@@ -168,7 +209,7 @@ router.delete('/:id', async (req, res) => {
         logger.error('API delete SMS error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to delete SMS'
+            message: 'Failed to delete SMS: ' + error.message
         });
     }
 });
@@ -178,6 +219,10 @@ router.put('/:id/read', async (req, res) => {
     try {
         const { id } = req.params;
         const db = req.app.locals.db;
+        
+        if (!db) {
+            throw new Error('Database not available');
+        }
 
         const result = await db.run(
             'UPDATE sms SET read = 1 WHERE id = ? AND read = 0',
@@ -188,17 +233,21 @@ router.put('/:id/read', async (req, res) => {
             logger.info(`SMS marked as read: ${id}`);
             
             // Get updated unread count
-            const unreadCount = await db.get(`
-                SELECT COUNT(*) as count FROM sms 
-                WHERE read = 0 AND type = 'incoming'
-            `);
+            try {
+                const unreadCount = await db.get(`
+                    SELECT COUNT(*) as count FROM sms 
+                    WHERE read = 0 AND type = 'incoming'
+                `);
 
-            // Emit socket event
-            if (req.io) {
-                req.io.emit('sms:read', { 
-                    id,
-                    unreadCount: unreadCount.count
-                });
+                // Emit socket event
+                if (req.io) {
+                    req.io.emit('sms:read', { 
+                        id,
+                        unreadCount: unreadCount.count
+                    });
+                }
+            } catch (countError) {
+                logger.error('Error getting unread count:', countError);
             }
         }
 
@@ -210,7 +259,7 @@ router.put('/:id/read', async (req, res) => {
         logger.error('API mark read error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to mark SMS as read'
+            message: 'Failed to mark SMS as read: ' + error.message
         });
     }
 });
@@ -220,6 +269,10 @@ router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const db = req.app.locals.db;
+        
+        if (!db) {
+            throw new Error('Database not available');
+        }
 
         const sms = await db.get('SELECT * FROM sms WHERE id = ?', [id]);
 
@@ -238,7 +291,7 @@ router.get('/:id', async (req, res) => {
         logger.error('API get SMS error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to fetch SMS'
+            message: 'Failed to fetch SMS: ' + error.message
         });
     }
 });
@@ -256,6 +309,10 @@ router.post('/bulk-delete', async (req, res) => {
         }
 
         const db = req.app.locals.db;
+        if (!db) {
+            throw new Error('Database not available');
+        }
+
         const placeholders = ids.map(() => '?').join(',');
         
         const result = await db.run(
@@ -266,8 +323,12 @@ router.post('/bulk-delete', async (req, res) => {
         logger.info(`Bulk deleted ${result.changes} SMS messages`);
 
         // Emit socket event
-        if (req.io) {
-            req.io.emit('sms:bulk-deleted', { count: result.changes });
+        try {
+            if (req.io) {
+                req.io.emit('sms:bulk-deleted', { count: result.changes });
+            }
+        } catch (socketError) {
+            logger.error('Error emitting socket event:', socketError);
         }
 
         res.json({
@@ -279,7 +340,7 @@ router.post('/bulk-delete', async (req, res) => {
         logger.error('API bulk delete error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to delete messages'
+            message: 'Failed to delete messages: ' + error.message
         });
     }
 });
@@ -297,6 +358,10 @@ router.post('/bulk-read', async (req, res) => {
         }
 
         const db = req.app.locals.db;
+        if (!db) {
+            throw new Error('Database not available');
+        }
+
         const placeholders = ids.map(() => '?').join(',');
         
         const result = await db.run(
@@ -305,19 +370,28 @@ router.post('/bulk-read', async (req, res) => {
         );
 
         // Get updated unread count
-        const unreadCount = await db.get(`
-            SELECT COUNT(*) as count FROM sms 
-            WHERE read = 0 AND type = 'incoming'
-        `);
+        let unreadCount = { count: 0 };
+        try {
+            unreadCount = await db.get(`
+                SELECT COUNT(*) as count FROM sms 
+                WHERE read = 0 AND type = 'incoming'
+            `);
+        } catch (countError) {
+            logger.error('Error getting unread count:', countError);
+        }
 
         logger.info(`Marked ${result.changes} SMS as read`);
 
         // Emit socket event
-        if (req.io) {
-            req.io.emit('sms:bulk-read', { 
-                count: result.changes,
-                unreadCount: unreadCount.count
-            });
+        try {
+            if (req.io) {
+                req.io.emit('sms:bulk-read', { 
+                    count: result.changes,
+                    unreadCount: unreadCount.count
+                });
+            }
+        } catch (socketError) {
+            logger.error('Error emitting socket event:', socketError);
         }
 
         res.json({
@@ -330,7 +404,7 @@ router.post('/bulk-read', async (req, res) => {
         logger.error('API bulk read error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to mark messages as read'
+            message: 'Failed to mark messages as read: ' + error.message
         });
     }
 });

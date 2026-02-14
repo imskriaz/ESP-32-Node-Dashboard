@@ -578,4 +578,180 @@ router.get('/resolutions', (req, res) => {
     }
 });
 
+router.get('/stream', (req, res) => {
+    try {
+        if (!webcamState.enabled) {
+            return res.status(404).send('Camera disabled');
+        }
+        
+        // In production, this would stream from the actual camera
+        // For now, generate a simple MJPEG stream
+        res.writeHead(200, {
+            'Content-Type': 'multipart/x-mixed-replace; boundary=frame',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        });
+        
+        const interval = setInterval(() => {
+            if (!webcamState.enabled) {
+                clearInterval(interval);
+                res.end();
+                return;
+            }
+            
+            // Generate a simple frame (in production, get from camera)
+            const { createCanvas } = require('canvas');
+            const canvas = createCanvas(
+                parseInt(webcamState.settings.resolution.split('x')[0]),
+                parseInt(webcamState.settings.resolution.split('x')[1])
+            );
+            const ctx = canvas.getContext('2d');
+            
+            // Draw timestamp and info
+            ctx.fillStyle = '#0066cc';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 24px Arial';
+            ctx.fillText(new Date().toLocaleTimeString(), 50, 50);
+            ctx.font = 'bold 36px Arial';
+            ctx.fillText('ESP32-CAM', 50, 150);
+            ctx.font = '20px Arial';
+            ctx.fillText(`Resolution: ${webcamState.settings.resolution}`, 50, 250);
+            ctx.fillText(`FPS: ${webcamState.settings.fps}`, 50, 300);
+            
+            const buffer = canvas.toBuffer('image/jpeg');
+            
+            res.write(`--frame\r\n`);
+            res.write(`Content-Type: image/jpeg\r\n`);
+            res.write(`Content-Length: ${buffer.length}\r\n\r\n`);
+            res.write(buffer);
+            res.write(`\r\n`);
+        }, 1000 / webcamState.settings.fps);
+        
+        req.on('close', () => {
+            clearInterval(interval);
+        });
+        
+    } catch (error) {
+        logger.error('Stream error:', error);
+        res.status(500).send('Stream error');
+    }
+});
+
+// Get capture history
+router.get('/history', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 20;
+        const uploadDir = path.join(__dirname, '../public/uploads/webcam');
+        
+        if (!fs.existsSync(uploadDir)) {
+            return res.json({
+                success: true,
+                data: []
+            });
+        }
+
+        const files = fs.readdirSync(uploadDir)
+            .filter(f => f.endsWith('.jpg') || f.endsWith('.jpeg'))
+            .map(f => {
+                const stat = fs.statSync(path.join(uploadDir, f));
+                return {
+                    path: `/uploads/webcam/${f}`,
+                    filename: f,
+                    timestamp: stat.mtime,
+                    size: stat.size,
+                    created: stat.birthtime
+                };
+            })
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .slice(0, limit);
+
+        res.json({
+            success: true,
+            data: files
+        });
+    } catch (error) {
+        logger.error('API webcam history error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get capture history'
+        });
+    }
+});
+
+// Delete capture
+router.delete('/capture/:filename', (req, res) => {
+    try {
+        const { filename } = req.params;
+        const filePath = path.join(__dirname, '../public/uploads/webcam', filename);
+        
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            logger.info(`Deleted capture: ${filename}`);
+            
+            res.json({
+                success: true,
+                message: 'Capture deleted'
+            });
+        } else {
+            res.status(404).json({
+                success: false,
+                message: 'Capture not found'
+            });
+        }
+    } catch (error) {
+        logger.error('API delete capture error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete capture'
+        });
+    }
+});
+
+// Get motion detection zones
+router.get('/motion/zones', (req, res) => {
+    try {
+        // In production, load from database
+        const zones = [
+            // Default full-frame zone
+            { x: 0, y: 0, width: 640, height: 480 }
+        ];
+        
+        res.json({
+            success: true,
+            data: zones
+        });
+    } catch (error) {
+        logger.error('API motion zones error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get motion zones'
+        });
+    }
+});
+
+// Save motion zones
+router.post('/motion/zones', [
+    body('zones').isArray()
+], (req, res) => {
+    try {
+        const { zones } = req.body;
+        
+        // In production, save to database
+        logger.info(`Saved ${zones.length} motion zones`);
+        
+        res.json({
+            success: true,
+            message: 'Motion zones saved'
+        });
+    } catch (error) {
+        logger.error('API save motion zones error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to save motion zones'
+        });
+    }
+});
+
 module.exports = router;

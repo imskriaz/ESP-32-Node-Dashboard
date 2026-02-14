@@ -1,7 +1,7 @@
 // Webcam JavaScript
-(function() {
+(function () {
     'use strict';
-    
+
     console.log('Webcam.js loaded - ' + new Date().toISOString());
 
     // State
@@ -19,7 +19,7 @@
 
     function init() {
         console.log('Initializing Webcam page...');
-        
+
         loadStatus();
         loadLatestCapture();
         loadCaptureHistory();
@@ -43,7 +43,7 @@
     // Update UI with webcam status
     function updateStatus(data) {
         webcamEnabled = data.enabled;
-        
+
         // Update toggle
         const toggle = document.getElementById('webcamToggle');
         const toggleLabel = document.getElementById('webcamToggleLabel');
@@ -84,19 +84,36 @@
         updateLiveFeed(data.enabled);
     }
 
-    // Update live feed display
     function updateLiveFeed(enabled) {
         const feedImg = document.getElementById('cameraFeed');
         const noFeedMsg = document.getElementById('noFeedMessage');
-        
+        const streamStatus = document.getElementById('streamStatus');
+
         if (enabled) {
+            // Use actual MJPEG stream from server
+            feedImg.src = '/api/webcam/stream?' + Date.now();
             feedImg.style.display = 'inline';
             noFeedMsg.style.display = 'none';
-            // In production, this would be a real stream URL
-            // feedImg.src = '/api/webcam/stream?' + new Date().getTime();
+            streamStatus.textContent = 'Streaming';
+            streamStatus.className = 'badge bg-success';
+
+            // Refresh periodically to keep stream alive
+            if (window.streamInterval) {
+                clearInterval(window.streamInterval);
+            }
+            window.streamInterval = setInterval(() => {
+                if (webcamEnabled) {
+                    feedImg.src = '/api/webcam/stream?' + Date.now();
+                }
+            }, 1000 / (currentSettings.fps || 15));
         } else {
+            if (window.streamInterval) {
+                clearInterval(window.streamInterval);
+            }
             feedImg.style.display = 'none';
             noFeedMsg.style.display = 'flex';
+            streamStatus.textContent = 'Offline';
+            streamStatus.className = 'badge bg-secondary';
         }
     }
 
@@ -181,58 +198,87 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled })
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast(data.message, 'success');
-                loadStatus();
-            } else {
-                showToast(data.message || 'Failed to toggle webcam', 'danger');
-                document.getElementById('webcamToggle').checked = !enabled;
-            }
-        })
-        .catch(error => {
-            console.error('Error toggling webcam:', error);
-            showToast('Error toggling webcam', 'danger');
-        });
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    loadStatus();
+                } else {
+                    showToast(data.message || 'Failed to toggle webcam', 'danger');
+                    document.getElementById('webcamToggle').checked = !enabled;
+                }
+            })
+            .catch(error => {
+                console.error('Error toggling webcam:', error);
+                showToast('Error toggling webcam', 'danger');
+            });
     }
 
-    // Capture image
     function captureImage() {
+        if (!webcamEnabled) {
+            showToast('Please enable the camera first', 'warning');
+            return;
+        }
+
+        const captureBtn = document.querySelector('button[onclick="captureImage()"]');
+        const originalHtml = captureBtn?.innerHTML;
+
+        if (captureBtn) {
+            captureBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Capturing...';
+            captureBtn.disabled = true;
+        }
+
         showToast('Capturing image...', 'info');
 
         fetch('/api/webcam/capture', {
             method: 'POST'
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast('Image captured', 'success');
-                showCaptureModal(data.data);
-                loadLatestCapture();
-                loadCaptureHistory();
-            } else {
-                showToast(data.message || 'Failed to capture image', 'danger');
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Capture command sent', 'success');
+                    // Image will come via WebSocket
+                } else {
+                    showToast(data.message || 'Failed to capture image', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error capturing image:', error);
+                showToast('Error capturing image', 'danger');
+            })
+            .finally(() => {
+                if (captureBtn) {
+                    captureBtn.innerHTML = originalHtml;
+                    captureBtn.disabled = false;
+                }
+            });
+    }
+
+    // Add WebSocket listener for new captures
+    if (typeof socket !== 'undefined') {
+        socket.on('webcam:capture', (data) => {
+            showToast('New image captured', 'success');
+
+            // Update latest capture
+            const latestImg = document.getElementById('latestCapture');
+            const noMsg = document.getElementById('noCaptureMessage');
+
+            if (latestImg && noMsg) {
+                latestImg.src = data.path + '?' + Date.now();
+                latestImg.style.display = 'inline';
+                noMsg.style.display = 'none';
             }
-        })
-        .catch(error => {
-            console.error('Error capturing image:', error);
-            showToast('Error capturing image', 'danger');
+
+            // Reload history
+            loadCaptureHistory();
+
+            // Show in modal if open
+            const modalCapture = document.getElementById('modalCapture');
+            if (modalCapture) {
+                modalCapture.src = data.path + '?' + Date.now();
+            }
         });
     }
-
-    // Show capture in modal
-    function showCaptureModal(data) {
-        const modalImg = document.getElementById('modalCapture');
-        const modalInfo = document.getElementById('modalCaptureInfo');
-        
-        modalImg.src = data.url;
-        modalInfo.textContent = `${data.resolution} | ${Math.round(data.size / 1024)} KB | ${new Date(data.timestamp).toLocaleString()}`;
-        
-        const modal = new bootstrap.Modal(document.getElementById('captureModal'));
-        modal.show();
-    }
-
     // Load latest capture
     function loadLatestCapture() {
         fetch('/api/webcam/latest')
@@ -241,7 +287,7 @@
                 if (data.success && data.data) {
                     const latestImg = document.getElementById('latestCapture');
                     const noMsg = document.getElementById('noCaptureMessage');
-                    
+
                     if (latestImg && noMsg) {
                         latestImg.src = data.data.path;
                         latestImg.style.display = 'inline';
@@ -252,27 +298,163 @@
             .catch(console.error);
     }
 
-    // Load capture history
     function loadCaptureHistory() {
         const container = document.getElementById('captureHistory');
         if (!container) return;
 
-        // In production, this would fetch from /api/webcam/history
-        // For now, show placeholder
-        setTimeout(() => {
-            container.innerHTML = `
-                <div class="col-12 text-center py-4 text-muted">
-                    <i class="bi bi-images fs-1 d-block mb-3"></i>
-                    <p>No captures yet</p>
-                    <button class="btn btn-primary" onclick="captureImage()">
-                        <i class="bi bi-camera"></i> Take First Photo
-                    </button>
+        fetch('/api/webcam/history?limit=12')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data && data.data.length > 0) {
+                    displayCaptureHistory(data.data);
+                } else {
+                    container.innerHTML = `
+                    <div class="col-12 text-center py-4 text-muted">
+                        <i class="bi bi-images fs-1 d-block mb-3"></i>
+                        <p>No captures yet</p>
+                        <button class="btn btn-primary" onclick="captureImage()">
+                            <i class="bi bi-camera"></i> Take First Photo
+                        </button>
+                    </div>
+                `;
+                }
+            })
+            .catch(error => {
+                console.error('Error loading history:', error);
+                container.innerHTML = `
+                <div class="col-12 text-center py-4 text-danger">
+                    <i class="bi bi-exclamation-triangle fs-1 d-block mb-3"></i>
+                    <p>Failed to load capture history</p>
                 </div>
             `;
-        }, 500);
+            });
     }
 
-    // Save camera settings
+    function displayCaptureHistory(captures) {
+        const container = document.getElementById('captureHistory');
+        let html = '';
+
+        captures.forEach(capture => {
+            html += `
+            <div class="col-6 col-md-4 col-lg-3">
+                <div class="card capture-thumbnail cursor-pointer" onclick="viewCapture('${capture.path}')">
+                    <img src="${capture.path}" class="card-img-top" alt="Capture" style="height: 150px; object-fit: cover;">
+                    <div class="card-body p-2">
+                        <small class="text-muted d-block text-truncate">
+                            ${new Date(capture.timestamp).toLocaleString()}
+                        </small>
+                        <small class="text-muted">${formatBytes(capture.size)}</small>
+                    </div>
+                </div>
+            </div>
+        `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    function initMotionZone() {
+        const canvas = document.getElementById('motionZoneCanvas');
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+        let startX, startY;
+        let zones = [];
+
+        // Load existing zones
+        fetch('/api/webcam/motion/zones')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    zones = data.data || [];
+                    drawZones();
+                }
+            })
+            .catch(console.error);
+
+        function drawZones() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 2;
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.1)';
+
+            zones.forEach(zone => {
+                ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
+                ctx.fillRect(zone.x, zone.y, zone.width, zone.height);
+            });
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            isDrawing = true;
+            startX = (e.clientX - rect.left) * scaleX;
+            startY = (e.clientY - rect.top) * scaleY;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            const currentX = (e.clientX - rect.left) * scaleX;
+            const currentY = (e.clientY - rect.top) * scaleY;
+
+            drawZones();
+
+            // Draw preview
+            ctx.strokeStyle = '#ff0000';
+            ctx.strokeRect(startX, startY, currentX - startX, currentY - startY);
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (!isDrawing) return;
+            isDrawing = false;
+
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            const endX = (e.clientX - rect.left) * scaleX;
+            const endY = (e.clientY - rect.top) * scaleY;
+
+            const width = endX - startX;
+            const height = endY - startY;
+
+            if (Math.abs(width) > 10 && Math.abs(height) > 10) {
+                const zone = {
+                    x: Math.min(startX, endX),
+                    y: Math.min(startY, endY),
+                    width: Math.abs(width),
+                    height: Math.abs(height)
+                };
+
+                zones.push(zone);
+
+                // Save to server
+                fetch('/api/webcam/motion/zones', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ zones })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showToast('Motion zone added', 'success');
+                        }
+                    })
+                    .catch(console.error);
+            }
+
+            drawZones();
+        });
+    }
+
     function saveSettings() {
         const settings = {
             resolution: document.getElementById('settingResolution').value,
@@ -291,16 +473,16 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(settings)
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast('Settings saved', 'success');
-                loadStatus();
-            } else {
-                showToast(data.message || 'Failed to save settings', 'danger');
-            }
-        })
-        .catch(console.error);
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Settings saved', 'success');
+                    loadStatus();
+                } else {
+                    showToast(data.message || 'Failed to save settings', 'danger');
+                }
+            })
+            .catch(console.error);
     }
 
     // Reset settings to default
@@ -321,7 +503,7 @@
             document.getElementById('sharpnessValue').textContent = '0';
             document.getElementById('settingFlipH').checked = false;
             document.getElementById('settingFlipV').checked = false;
-            
+
             saveSettings();
         }
     }
@@ -335,25 +517,25 @@
     // Toggle motion detection
     function toggleMotion() {
         const enabled = !motionDetectionEnabled;
-        
+
         fetch('/api/webcam/motion/toggle', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled })
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                motionDetectionEnabled = enabled;
-                const btn = document.getElementById('motionBtn');
-                btn.innerHTML = enabled ? 
-                    '<i class="bi bi-activity"></i> Disable Motion Detection' : 
-                    '<i class="bi bi-activity"></i> Enable Motion Detection';
-                btn.className = enabled ? 'btn btn-outline-danger' : 'btn btn-outline-success';
-                showToast(data.message, 'success');
-            }
-        })
-        .catch(console.error);
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    motionDetectionEnabled = enabled;
+                    const btn = document.getElementById('motionBtn');
+                    btn.innerHTML = enabled ?
+                        '<i class="bi bi-activity"></i> Disable Motion Detection' :
+                        '<i class="bi bi-activity"></i> Enable Motion Detection';
+                    btn.className = enabled ? 'btn btn-outline-danger' : 'btn btn-outline-success';
+                    showToast(data.message, 'success');
+                }
+            })
+            .catch(console.error);
     }
 
     // Save motion settings
@@ -366,19 +548,19 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled, sensitivity: parseInt(sensitivity) })
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast('Motion settings saved', 'success');
-            }
-        })
-        .catch(console.error);
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Motion settings saved', 'success');
+                }
+            })
+            .catch(console.error);
     }
 
     // Start recording
     function startRecording() {
         const btn = document.getElementById('recordBtn');
-        
+
         if (!recording) {
             fetch('/api/webcam/record/start', { method: 'POST' })
                 .then(response => response.json())
@@ -545,6 +727,12 @@
         }
     }
 
+    document.addEventListener('DOMContentLoaded', function () {
+        if (document.getElementById('motionZoneCanvas')) {
+            initMotionZone();
+        }
+    });
+
     // Cleanup
     window.addEventListener('beforeunload', () => {
         if (updateInterval) clearInterval(updateInterval);
@@ -562,7 +750,7 @@
     window.toggleFullscreen = toggleFullscreen;
     window.resetMotionZone = resetMotionZone;
     window.refreshWebcamData = refreshWebcamData;
-    window.downloadCapture = function() {
+    window.downloadCapture = function () {
         const img = document.getElementById('modalCapture');
         if (img.src) {
             const a = document.createElement('a');

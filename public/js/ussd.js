@@ -1,7 +1,7 @@
 // USSD Services JavaScript
-(function() {
+(function () {
     'use strict';
-    
+
     console.log('USSD.js loaded - ' + new Date().toISOString());
 
     // State
@@ -20,7 +20,7 @@
 
     function init() {
         console.log('Initializing USSD page...');
-        
+
         loadHistory();
         loadRecentCodes();
         loadSettings();
@@ -35,22 +35,32 @@
 
     function loadHistory(page = 1) {
         currentPage = page;
-        
+
         fetch(`/api/ussd/history?page=${page}&limit=10`)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     displayHistory(data.data);
                     updatePagination(data.pagination);
+                } else {
+                    showToast(data.message || 'Failed to load history', 'danger');
                 }
             })
-            .catch(error => console.error('Error loading history:', error));
+            .catch(error => {
+                console.error('Error loading history:', error);
+                showToast('Error loading USSD history', 'danger');
+            });
     }
 
     function displayHistory(history) {
         const tableBody = document.getElementById('historyTable');
         const mobileContainer = document.getElementById('historyMobile');
-        
+
         if (!tableBody || !mobileContainer) return;
 
         if (!history || history.length === 0) {
@@ -69,25 +79,34 @@
 
         // Desktop table
         let tableHtml = '';
-        
+
         // Mobile cards
         let mobileHtml = '';
 
         history.forEach(item => {
             const date = new Date(item.timestamp).toLocaleString();
-            
+            const statusBadge = item.status === 'success' ? 'bg-success' : 
+                               item.status === 'pending' ? 'bg-warning' : 'bg-danger';
+
             // Table row
             tableHtml += `
                 <tr>
                     <td><small>${date}</small></td>
                     <td><span class="badge bg-primary">${item.code}</span></td>
                     <td>${item.description || '-'}</td>
-                    <td><small class="text-truncate" style="max-width: 200px; display: block;">${item.response.substring(0, 50)}${item.response.length > 50 ? '...' : ''}</small></td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick='window.viewResponse("${item.response.replace(/"/g, '&quot;')}")'>
+                        <span class="badge ${statusBadge} me-2">${item.status}</span>
+                        <small class="text-truncate" style="max-width: 200px; display: block;">
+                            ${item.response ? item.response.substring(0, 50) + (item.response.length > 50 ? '...' : '') : 'Waiting for response...'}
+                        </small>
+                    </td>
+                    <td>
+                        ${item.response ? `
+                        <button class="btn btn-sm btn-outline-primary" onclick='viewResponse("${item.response.replace(/"/g, '&quot;')}")'>
                             <i class="bi bi-eye"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="window.deleteHistory(${item.id})">
+                        ` : ''}
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteHistory(${item.id})">
                             <i class="bi bi-trash"></i>
                         </button>
                     </td>
@@ -100,16 +119,18 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between mb-2">
                             <span class="badge bg-primary">${item.code}</span>
-                            <small class="text-muted">${date}</small>
+                            <span class="badge ${statusBadge}">${item.status}</span>
                         </div>
                         <p class="mb-1"><strong>${item.description || 'USSD Request'}</strong></p>
-                        <p class="mb-2 small">${item.response.substring(0, 80)}${item.response.length > 80 ? '...' : ''}</p>
+                        <p class="mb-2 small">${item.response ? item.response.substring(0, 80) + (item.response.length > 80 ? '...' : '') : 'Waiting for response...'}</p>
                         <div class="d-flex justify-content-end gap-2">
-                            <button class="btn btn-sm btn-outline-primary" onclick='window.viewResponse("${item.response.replace(/"/g, '&quot;')}")'>
+                            ${item.response ? `
+                            <button class="btn btn-sm btn-outline-primary" onclick='viewResponse("${item.response.replace(/"/g, '&quot;')}")'>
                                 <i class="bi bi-eye"></i> View
                             </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="window.deleteHistory(${item.id})">
-                                <i class="bi bi-trash"></i>
+                            ` : ''}
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteHistory(${item.id})">
+                                <i class="bi bi-trash"></i> Delete
                             </button>
                         </div>
                     </div>
@@ -124,7 +145,7 @@
     function updatePagination(pagination) {
         currentPage = pagination.page;
         totalPages = pagination.pages;
-        
+
         const container = document.getElementById('historyPagination');
         if (!container) return;
 
@@ -134,11 +155,11 @@
         }
 
         let html = '';
-        
+
         // Previous
         html += `
             <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
-                <a class="page-link" href="#" onclick="window.loadHistory(${currentPage - 1}); return false;">Previous</a>
+                <a class="page-link" href="#" onclick="loadHistory(${currentPage - 1}); return false;">Previous</a>
             </li>
         `;
 
@@ -147,7 +168,7 @@
             if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
                 html += `
                     <li class="page-item ${i === currentPage ? 'active' : ''}">
-                        <a class="page-link" href="#" onclick="window.loadHistory(${i}); return false;">${i}</a>
+                        <a class="page-link" href="#" onclick="loadHistory(${i}); return false;">${i}</a>
                     </li>
                 `;
             } else if (i === currentPage - 3 || i === currentPage + 3) {
@@ -158,7 +179,7 @@
         // Next
         html += `
             <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
-                <a class="page-link" href="#" onclick="window.loadHistory(${currentPage + 1}); return false;">Next</a>
+                <a class="page-link" href="#" onclick="loadHistory(${currentPage + 1}); return false;">Next</a>
             </li>
         `;
 
@@ -171,14 +192,24 @@
         fetch(`/api/ussd/history/${id}`, {
             method: 'DELETE'
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 showToast('History deleted', 'success');
                 loadHistory(currentPage);
+            } else {
+                showToast(data.message || 'Failed to delete', 'danger');
             }
         })
-        .catch(console.error);
+        .catch(error => {
+            console.error('Error deleting history:', error);
+            showToast('Error deleting history', 'danger');
+        });
     }
 
     function clearHistory() {
@@ -187,21 +218,31 @@
         fetch('/api/ussd/history', {
             method: 'DELETE'
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 showToast('All history cleared', 'success');
                 loadHistory(1);
+            } else {
+                showToast(data.message || 'Failed to clear', 'danger');
             }
         })
-        .catch(console.error);
+        .catch(error => {
+            console.error('Error clearing history:', error);
+            showToast('Error clearing history', 'danger');
+        });
     }
 
     // ==================== USSD DIALER FUNCTIONS ====================
 
     function sendUSSD() {
         const code = document.getElementById('ussdCode').value.trim();
-        
+
         if (!code) {
             showToast('Please enter a USSD code', 'warning');
             return;
@@ -214,7 +255,9 @@
 
         const responseDiv = document.getElementById('ussdResponse');
         const menuNav = document.getElementById('menuNavigation');
-        
+        const sendBtn = document.querySelector('button[onclick="sendUSSD()"]');
+        const originalHtml = sendBtn?.innerHTML;
+
         responseDiv.innerHTML = `
             <div class="text-center py-4">
                 <div class="spinner-border text-primary" role="status"></div>
@@ -223,15 +266,34 @@
         `;
         menuNav.style.display = 'none';
 
+        if (sendBtn) {
+            sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Sending...';
+            sendBtn.disabled = true;
+        }
+
         fetch('/api/ussd/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code })
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
-                displayResponse(data.data);
+                showToast('USSD request sent', 'success');
+                
+                responseDiv.innerHTML = `
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2">Waiting for response...</p>
+                        <p class="text-muted small">Request ID: ${data.data.id}</p>
+                    </div>
+                `;
+                
                 loadHistory(1);
                 loadRecentCodes();
             } else {
@@ -241,6 +303,7 @@
                         <p>${data.message || 'Failed to send USSD request'}</p>
                     </div>
                 `;
+                showToast(data.message || 'Failed to send USSD', 'danger');
             }
         })
         .catch(error => {
@@ -248,155 +311,18 @@
             responseDiv.innerHTML = `
                 <div class="text-center py-4 text-danger">
                     <i class="bi bi-exclamation-triangle fs-1 d-block mb-3"></i>
-                    <p>Connection error. Please try again.</p>
+                    <p>Connection error: ${error.message}</p>
+                    <button class="btn btn-outline-primary mt-3" onclick="sendUSSD()">Try Again</button>
                 </div>
             `;
-        });
-    }
-
-    function displayResponse(data) {
-        const responseDiv = document.getElementById('ussdResponse');
-        const sessionStatus = document.getElementById('sessionStatus');
-        const endSessionBtn = document.getElementById('endSessionBtn');
-        const menuNav = document.getElementById('menuNavigation');
-        const menuOptions = document.getElementById('menuOptions');
-
-        // Format response with proper line breaks
-        const formattedResponse = data.response.replace(/\n/g, '<br>');
-        
-        responseDiv.innerHTML = `
-            <div class="border-start border-primary border-4 ps-3">
-                <small class="text-muted">${new Date().toLocaleString()}</small>
-                <div class="mt-2" style="font-family: monospace;">${formattedResponse}</div>
-            </div>
-        `;
-
-        if (data.sessionId) {
-            currentSession = data;
-            sessionStatus.textContent = 'Session Active';
-            sessionStatus.className = 'badge bg-success';
-            endSessionBtn.style.display = 'inline-block';
-        }
-
-        // Check if this is a menu response
-        if (data.menuLevel > 0 || data.response.includes('1.') || data.response.includes('2.') || data.response.includes('3.') || data.response.includes('4.')) {
-            showMenuNavigation(data);
-        } else {
-            menuNav.style.display = 'none';
-        }
-    }
-
-    function showMenuNavigation(data) {
-        const menuNav = document.getElementById('menuNavigation');
-        const menuOptions = document.getElementById('menuOptions');
-        
-        if (!menuNav || !menuOptions) return;
-
-        // Parse options from response
-        const options = [];
-        const lines = data.response.split('\n');
-        
-        lines.forEach(line => {
-            // Match patterns like "1. Check Balance" or "1.Check Balance"
-            const match = line.match(/^(\d+)\.\s*(.+)/);
-            if (match) {
-                options.push({ number: match[1], text: match[2] });
+            showToast('Error sending USSD: ' + error.message, 'danger');
+        })
+        .finally(() => {
+            if (sendBtn) {
+                sendBtn.innerHTML = originalHtml;
+                sendBtn.disabled = false;
             }
         });
-
-        if (options.length > 0) {
-            let html = '';
-            options.forEach(opt => {
-                html += `
-                    <button class="btn btn-outline-primary menu-option" onclick="window.sendMenuChoice('${opt.number}')">
-                        ${opt.number}
-                    </button>
-                `;
-            });
-            menuOptions.innerHTML = html;
-            menuNav.style.display = 'block';
-        } else {
-            menuNav.style.display = 'none';
-        }
-    }
-
-    function sendMenuChoice(choice) {
-        if (!currentSession) {
-            showToast('No active session', 'warning');
-            return;
-        }
-
-        // Show loading in response area
-        const responseDiv = document.getElementById('ussdResponse');
-        responseDiv.innerHTML = `
-            <div class="text-center py-4">
-                <div class="spinner-border text-primary" role="status"></div>
-                <p class="mt-2">Processing choice ${choice}...</p>
-            </div>
-        `;
-
-        fetch('/api/ussd/respond', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                sessionId: currentSession.sessionId,
-                choice
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Display the response
-                const responseData = {
-                    response: data.data.response,
-                    sessionId: currentSession.sessionId,
-                    menuLevel: data.data.response.includes('1.') ? 1 : 0
-                };
-                displayResponse(responseData);
-                
-                if (data.data.sessionEnded) {
-                    endSession();
-                }
-            } else {
-                showToast(data.message || 'Failed to send choice', 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast('Failed to send choice', 'danger');
-        });
-    }
-
-    function endSession() {
-        fetch('/api/ussd/session/end', {
-            method: 'POST'
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                currentSession = null;
-                document.getElementById('sessionStatus').textContent = 'No Active Session';
-                document.getElementById('sessionStatus').className = 'badge bg-info';
-                document.getElementById('endSessionBtn').style.display = 'none';
-                document.getElementById('menuNavigation').style.display = 'none';
-                showToast('Session ended', 'success');
-            }
-        })
-        .catch(console.error);
-    }
-
-    function checkSession() {
-        fetch('/api/ussd/session')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.data.active) {
-                    currentSession = data.data;
-                    document.getElementById('sessionStatus').textContent = 'Session Active';
-                    document.getElementById('sessionStatus').className = 'badge bg-success';
-                    document.getElementById('endSessionBtn').style.display = 'inline-block';
-                }
-            })
-            .catch(console.error);
     }
 
     function loadRecentCodes() {
@@ -404,13 +330,18 @@
         if (!container) return;
 
         fetch('/api/ussd/history?limit=5')
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success && data.data.length > 0) {
                     let html = '';
                     data.data.forEach(item => {
                         html += `
-                            <div class="list-group-item list-group-item-action cursor-pointer" onclick="window.setCode('${item.code}')">
+                            <div class="list-group-item list-group-item-action cursor-pointer" onclick="setCode('${item.code}')">
                                 <div class="d-flex justify-content-between">
                                     <span><strong>${item.code}</strong></span>
                                     <small class="text-muted">${item.description || 'USSD'}</small>
@@ -423,7 +354,10 @@
                     container.innerHTML = '<div class="list-group-item text-muted">No recent codes</div>';
                 }
             })
-            .catch(console.error);
+            .catch(error => {
+                console.error('Error loading recent codes:', error);
+                container.innerHTML = '<div class="list-group-item text-danger">Error loading codes</div>';
+            });
     }
 
     function setCode(code) {
@@ -452,36 +386,47 @@
         });
     }
 
-    // Test menu function
-    function testMenuUssd() {
-        document.getElementById('ussdCode').value = '*123#';
-        sendUSSD();
-    }
-
     // ==================== SETTINGS FUNCTIONS ====================
 
     function loadSettings() {
         fetch('/api/ussd/settings')
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     settings = data.data;
                     displaySettings(data.data);
+                } else {
+                    showToast(data.message || 'Failed to load settings', 'danger');
                 }
             })
-            .catch(console.error);
+            .catch(error => {
+                console.error('Error loading settings:', error);
+                showToast('Error loading USSD settings', 'danger');
+            });
     }
 
     function loadEnabledSettings() {
         fetch('/api/ussd/settings/enabled')
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     displayQuickServices(data.data);
                     displayQuickCodeSuggestions(data.data);
                 }
             })
-            .catch(console.error);
+            .catch(error => {
+                console.error('Error loading enabled settings:', error);
+            });
     }
 
     function displaySettings(settings) {
@@ -493,7 +438,7 @@
                 <tr>
                     <td colspan="6" class="text-center py-4">
                         <p class="text-muted">No services configured</p>
-                        <button class="btn btn-primary btn-sm" onclick="window.showAddServiceModal()">
+                        <button class="btn btn-primary btn-sm" onclick="showAddServiceModal()">
                             <i class="bi bi-plus"></i> Add your first service
                         </button>
                     </td>
@@ -521,14 +466,14 @@
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" 
                                    ${service.enabled ? 'checked' : ''} 
-                                   onchange="window.toggleService('${service.service_key}', ${!service.enabled})">
+                                   onchange="toggleService('${service.service_key}', ${!service.enabled})">
                         </div>
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="window.editService('${service.service_key}')">
+                        <button class="btn btn-sm btn-outline-primary" onclick="editService('${service.service_key}')">
                             <i class="bi bi-pencil"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="window.deleteService('${service.service_key}')">
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteService('${service.service_key}')">
                             <i class="bi bi-trash"></i>
                         </button>
                     </td>
@@ -565,10 +510,10 @@
         let html = '';
         services.forEach(service => {
             const icon = getIconClass(service.icon);
-            
+
             html += `
                 <div class="col-12 col-md-6 col-lg-4">
-                    <div class="card service-card" onclick="window.quickService('${service.ussd_code}')">
+                    <div class="card service-card" onclick="quickService('${service.ussd_code}')">
                         <div class="card-body text-center">
                             <div class="display-1 mb-3 text-primary">
                                 <i class="bi bi-${icon}"></i>
@@ -597,7 +542,7 @@
         let html = '';
         services.slice(0, 6).forEach(service => {
             html += `
-                <span class="badge bg-light text-dark p-2 cursor-pointer" onclick="window.setCode('${service.ussd_code}')">
+                <span class="badge bg-light text-dark p-2 cursor-pointer" onclick="setCode('${service.ussd_code}')">
                     ${service.ussd_code}
                 </span>
             `;
@@ -612,15 +557,35 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled })
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 showToast(`Service ${enabled ? 'enabled' : 'disabled'}`, 'success');
                 loadSettings();
                 loadEnabledSettings();
+            } else {
+                showToast(data.message || 'Failed to toggle service', 'danger');
+                // Revert checkbox
+                const checkbox = document.querySelector(`input[onchange*="toggleService('${key}'"]`);
+                if (checkbox) {
+                    checkbox.checked = !enabled;
+                }
             }
         })
-        .catch(console.error);
+        .catch(error => {
+            console.error('Error toggling service:', error);
+            showToast('Error toggling service', 'danger');
+            // Revert checkbox
+            const checkbox = document.querySelector(`input[onchange*="toggleService('${key}'"]`);
+            if (checkbox) {
+                checkbox.checked = !enabled;
+            }
+        });
     }
 
     function showAddServiceModal() {
@@ -631,7 +596,7 @@
         document.getElementById('serviceKeyInput').readOnly = false;
         document.getElementById('deleteServiceBtn').style.display = 'none';
         document.getElementById('enabledInput').checked = true;
-        
+
         const modal = new bootstrap.Modal(document.getElementById('serviceModal'));
         modal.show();
     }
@@ -650,7 +615,7 @@
         document.getElementById('iconInput').value = service.icon || 'question';
         document.getElementById('enabledInput').checked = service.enabled === 1;
         document.getElementById('deleteServiceBtn').style.display = 'inline-block';
-        
+
         const modal = new bootstrap.Modal(document.getElementById('serviceModal'));
         modal.show();
     }
@@ -682,6 +647,14 @@
             return;
         }
 
+        const saveBtn = document.querySelector('button[onclick="saveService()"]');
+        const originalHtml = saveBtn?.innerHTML;
+        
+        if (saveBtn) {
+            saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Saving...';
+            saveBtn.disabled = true;
+        }
+
         const url = key ? `/api/ussd/settings/${key}` : '/api/ussd/settings';
         const method = key ? 'PUT' : 'POST';
 
@@ -690,21 +663,35 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 showToast(key ? 'Service updated' : 'Service created', 'success');
-                
+
                 const modal = bootstrap.Modal.getInstance(document.getElementById('serviceModal'));
-                modal.hide();
-                
+                if (modal) modal.hide();
+
                 loadSettings();
                 loadEnabledSettings();
             } else {
                 showToast(data.message || 'Failed to save service', 'danger');
             }
         })
-        .catch(console.error);
+        .catch(error => {
+            console.error('Error saving service:', error);
+            showToast('Error saving service: ' + error.message, 'danger');
+        })
+        .finally(() => {
+            if (saveBtn) {
+                saveBtn.innerHTML = originalHtml;
+                saveBtn.disabled = false;
+            }
+        });
     }
 
     function deleteService(key) {
@@ -713,88 +700,145 @@
         fetch(`/api/ussd/settings/${key}`, {
             method: 'DELETE'
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 showToast('Service deleted', 'success');
-                
+
                 const modal = bootstrap.Modal.getInstance(document.getElementById('serviceModal'));
                 if (modal) modal.hide();
-                
+
                 loadSettings();
                 loadEnabledSettings();
+            } else {
+                showToast(data.message || 'Failed to delete service', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting service:', error);
+            showToast('Error deleting service', 'danger');
+        });
+    }
+
+    // ==================== SOCKET LISTENERS ====================
+
+    function attachSocketListeners() {
+        if (typeof socket === 'undefined') {
+            console.warn('Socket not available');
+            return;
+        }
+
+        socket.off('ussd:response');
+        socket.off('ussd:settings-updated');
+        socket.off('ussd:settings-created');
+        socket.off('ussd:settings-deleted');
+        socket.off('ussd:settings-reordered');
+
+        socket.on('ussd:response', (data) => {
+            console.log('USSD response received:', data);
+            
+            // Update response display
+            const responseDiv = document.getElementById('ussdResponse');
+            if (responseDiv) {
+                const formattedResponse = data.response.replace(/\n/g, '<br>');
+                responseDiv.innerHTML = `
+                    <div class="border-start border-primary border-4 ps-3">
+                        <small class="text-muted">${new Date().toLocaleString()}</small>
+                        <div class="mt-2" style="font-family: monospace;">${formattedResponse}</div>
+                    </div>
+                `;
+            }
+            
+            showToast('New USSD response received', 'info');
+            loadHistory(1);
+            loadRecentCodes();
+        });
+
+        socket.on('ussd:settings-updated', () => {
+            loadSettings();
+            loadEnabledSettings();
+        });
+
+        socket.on('ussd:settings-created', () => {
+            loadSettings();
+            loadEnabledSettings();
+        });
+
+        socket.on('ussd:settings-deleted', () => {
+            loadSettings();
+            loadEnabledSettings();
+        });
+
+        socket.on('ussd:settings-reordered', () => {
+            loadSettings();
+            loadEnabledSettings();
+        });
+    }
+
+    function startUpdates() {
+        if (updateInterval) clearInterval(updateInterval);
+        updateInterval = setInterval(checkSession, 30000);
+    }
+
+    function checkSession() {
+        fetch('/api/ussd/session')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data.active) {
+                    currentSession = data.data;
+                    document.getElementById('sessionStatus').textContent = 'Session Active';
+                    document.getElementById('sessionStatus').className = 'badge bg-success';
+                    document.getElementById('endSessionBtn').style.display = 'inline-block';
+                } else {
+                    document.getElementById('sessionStatus').textContent = 'No Active Session';
+                    document.getElementById('sessionStatus').className = 'badge bg-info';
+                    document.getElementById('endSessionBtn').style.display = 'none';
+                }
+            })
+            .catch(console.error);
+    }
+
+    function endSession() {
+        fetch('/api/ussd/session/end', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentSession = null;
+                document.getElementById('sessionStatus').textContent = 'No Active Session';
+                document.getElementById('sessionStatus').className = 'badge bg-info';
+                document.getElementById('endSessionBtn').style.display = 'none';
+                document.getElementById('menuNavigation').style.display = 'none';
+                showToast('Session ended', 'success');
             }
         })
         .catch(console.error);
     }
 
-    function enableDragAndDrop() {
-        const tbody = document.getElementById('servicesTable');
-        if (!tbody) return;
-
-        let draggingRow = null;
-
-        tbody.querySelectorAll('tr').forEach(row => {
-            row.setAttribute('draggable', 'true');
-            
-            row.addEventListener('dragstart', (e) => {
-                draggingRow = row;
-                e.dataTransfer.setData('text/plain', row.dataset.key);
-                row.classList.add('bg-light');
-                e.stopPropagation();
-            });
-
-            row.addEventListener('dragend', (e) => {
-                if (draggingRow) {
-                    draggingRow.classList.remove('bg-light');
-                }
-                draggingRow = null;
-                e.stopPropagation();
-            });
-
-            row.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-            });
-
-            row.addEventListener('drop', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                if (!draggingRow || draggingRow === row) return;
-
-                const keys = Array.from(tbody.querySelectorAll('tr')).map(r => r.dataset.key);
-                const draggedKey = draggingRow.dataset.key;
-                const targetKey = row.dataset.key;
-
-                const draggedIndex = keys.indexOf(draggedKey);
-                const targetIndex = keys.indexOf(targetKey);
-
-                // Reorder array
-                keys.splice(draggedIndex, 1);
-                keys.splice(targetIndex, 0, draggedKey);
-
-                // Send new order to server
-                fetch('/api/ussd/settings/reorder', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ order: keys })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast('Services reordered', 'success');
-                        loadSettings();
-                        loadEnabledSettings();
-                    }
-                })
-                .catch(console.error);
-            });
-        });
+    function refreshUssdData() {
+        loadHistory(currentPage);
+        loadRecentCodes();
+        loadSettings();
+        loadEnabledSettings();
+        checkSession();
+        showToast('USSD data refreshed', 'success');
     }
 
-    // ==================== UTILITY FUNCTIONS ====================
+    function showToast(message, type = 'info') {
+        if (typeof window.showToast === 'function') {
+            window.showToast(message, type);
+        } else {
+            alert(message);
+        }
+    }
 
+    // Helper functions
     function getIconClass(icon) {
         const icons = {
             'cash-stack': 'cash-stack',
@@ -839,62 +883,91 @@
         }
     }
 
-    function attachSocketListeners() {
-        if (typeof socket === 'undefined') return;
+    function enableDragAndDrop() {
+        const tbody = document.getElementById('servicesTable');
+        if (!tbody) return;
 
-        socket.off('ussd:response');
-        socket.off('ussd:settings-updated');
-        socket.off('ussd:settings-created');
-        socket.off('ussd:settings-deleted');
-        socket.off('ussd:settings-reordered');
+        let draggingRow = null;
 
-        socket.on('ussd:response', (data) => {
-            showToast('New USSD response received', 'info');
-            loadHistory(1);
-            loadRecentCodes();
+        tbody.querySelectorAll('tr').forEach(row => {
+            row.setAttribute('draggable', 'true');
+
+            row.addEventListener('dragstart', (e) => {
+                draggingRow = row;
+                e.dataTransfer.setData('text/plain', row.dataset.key);
+                row.classList.add('bg-light', 'opacity-50');
+                e.stopPropagation();
+            });
+
+            row.addEventListener('dragend', (e) => {
+                if (draggingRow) {
+                    draggingRow.classList.remove('bg-light', 'opacity-50');
+                }
+                draggingRow = null;
+                e.stopPropagation();
+            });
+
+            row.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                row.classList.add('bg-info', 'bg-opacity-10');
+            });
+
+            row.addEventListener('dragleave', (e) => {
+                row.classList.remove('bg-info', 'bg-opacity-10');
+            });
+
+            row.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                row.classList.remove('bg-info', 'bg-opacity-10');
+
+                if (!draggingRow || draggingRow === row) return;
+
+                const keys = Array.from(tbody.querySelectorAll('tr')).map(r => r.dataset.key);
+                const draggedKey = draggingRow.dataset.key;
+                const targetKey = row.dataset.key;
+
+                const draggedIndex = keys.indexOf(draggedKey);
+                const targetIndex = keys.indexOf(targetKey);
+
+                // Reorder array
+                keys.splice(draggedIndex, 1);
+                keys.splice(targetIndex, 0, draggedKey);
+
+                // Send new order to server
+                const saveIndicator = document.getElementById('orderSaveIndicator');
+                if (saveIndicator) saveIndicator.style.display = 'block';
+
+                fetch('/api/ussd/settings/reorder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order: keys })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        showToast('Services reordered', 'success');
+                        loadSettings();
+                        loadEnabledSettings();
+                    } else {
+                        showToast(data.message || 'Failed to save order', 'danger');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error saving order:', error);
+                    showToast('Error saving order', 'danger');
+                })
+                .finally(() => {
+                    if (saveIndicator) saveIndicator.style.display = 'none';
+                });
+            });
         });
-
-        socket.on('ussd:settings-updated', () => {
-            loadSettings();
-            loadEnabledSettings();
-        });
-
-        socket.on('ussd:settings-created', () => {
-            loadSettings();
-            loadEnabledSettings();
-        });
-
-        socket.on('ussd:settings-deleted', () => {
-            loadSettings();
-            loadEnabledSettings();
-        });
-
-        socket.on('ussd:settings-reordered', () => {
-            loadSettings();
-            loadEnabledSettings();
-        });
-    }
-
-    function startUpdates() {
-        if (updateInterval) clearInterval(updateInterval);
-        updateInterval = setInterval(checkSession, 30000);
-    }
-
-    function refreshUssdData() {
-        loadHistory(currentPage);
-        loadRecentCodes();
-        loadSettings();
-        loadEnabledSettings();
-        checkSession();
-        showToast('USSD data refreshed', 'success');
-    }
-
-    function showToast(message, type = 'info') {
-        if (typeof window.showToast === 'function') {
-            window.showToast(message, type);
-        } else {
-            alert(message);
-        }
     }
 
     // Cleanup
@@ -903,31 +976,21 @@
     });
 
     // ==================== EXPORT ALL FUNCTIONS TO WINDOW ====================
-    // This ensures all functions are globally accessible
 
-    // History functions
     window.loadHistory = loadHistory;
     window.deleteHistory = deleteHistory;
     window.clearHistory = clearHistory;
-    
-    // USSD dialer functions
     window.sendUSSD = sendUSSD;
     window.endSession = endSession;
     window.setCode = setCode;
     window.quickService = quickService;
     window.viewResponse = viewResponse;
     window.copyResponse = copyResponse;
-    window.sendMenuChoice = sendMenuChoice;  // This was missing!
-    window.testMenuUssd = testMenuUssd;
-    
-    // Settings functions
     window.toggleService = toggleService;
     window.showAddServiceModal = showAddServiceModal;
     window.editService = editService;
     window.saveService = saveService;
     window.deleteService = deleteService;
-    
-    // Refresh function
     window.refreshUssdData = refreshUssdData;
 
     console.log('All USSD functions exported to window');

@@ -1,0 +1,22 @@
+# Server Configuration
+PORT=3001
+NODE_ENV=development
+SESSION_SECRET=your-strong-secret-key-here-change-in-production
+
+# Database
+DB_PATH=./data/database.sqlite
+
+# Admin User
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=admin123
+ADMIN_NAME=System Administrator
+ADMIN_EMAIL=admin@example.com
+
+# Logging
+LOG_LEVEL=info
+
+# MQTT Configuration
+MQTT_HOST=device.atebd.com
+MQTT_PORT=1883
+MQTT_USER=deviceuser
+MQTT_PASSWORD=skriaz153520!

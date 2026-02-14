@@ -1,0 +1,766 @@
+<!-- Settings Page -->
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
+    <div>
+        <h2 class="mb-1">
+            <i class="bi bi-gear me-2"></i>Settings
+        </h2>
+        <p class="text-muted mb-0">Configure your ESP32-S3 gateway</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary" onclick="saveAllSettings()">
+            <i class="bi bi-check-lg me-2"></i>Save All
+        </button>
+        <button class="btn btn-outline-danger" onclick="factoryReset()">
+            <i class="bi bi-arrow-counterclockwise me-2"></i>Factory Reset
+        </button>
+    </div>
+</div>
+
+<!-- Settings Tabs -->
+<ul class="nav nav-tabs nav-fill mb-4" id="settingsTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="mqtt-tab" data-bs-toggle="tab" data-bs-target="#mqtt" type="button">
+            <i class="bi bi-hdd-network me-2"></i>MQTT
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="modem-tab" data-bs-toggle="tab" data-bs-target="#modem" type="button">
+            <i class="bi bi-broadcast me-2"></i>Modem
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="webcam-tab" data-bs-toggle="tab" data-bs-target="#webcam" type="button">
+            <i class="bi bi-camera me-2"></i>Webcam
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="system-tab" data-bs-toggle="tab" data-bs-target="#system" type="button">
+            <i class="bi bi-cpu me-2"></i>System
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="notifications-tab" data-bs-toggle="tab" data-bs-target="#notifications" type="button">
+            <i class="bi bi-bell me-2"></i>Notifications
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="backup-tab" data-bs-toggle="tab" data-bs-target="#backup" type="button">
+            <i class="bi bi-database me-2"></i>Backup
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <!-- ==================== MQTT SETTINGS ==================== -->
+    <div class="tab-pane fade show active" id="mqtt" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-hdd-network me-2"></i>MQTT Broker Settings
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="mqttSettingsForm">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Host</label>
+                            <input type="text" class="form-control" id="mqttHost" placeholder="device.atebd.com">
+                            <small class="text-muted">MQTT broker hostname or IP</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Port</label>
+                            <input type="number" class="form-control" id="mqttPort" placeholder="1883" min="1" max="65535">
+                            <small class="text-muted">Default: 1883 (non-TLS) or 8883 (TLS)</small>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Username</label>
+                            <input type="text" class="form-control" id="mqttUsername" placeholder="deviceuser">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Password</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="mqttPassword" placeholder="••••••••">
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('mqttPassword')">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Client ID</label>
+                        <input type="text" class="form-control" id="mqttClientId" placeholder="esp32-dashboard">
+                        <small class="text-muted">Unique identifier for this client</small>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Topics</label>
+                        <div class="bg-light p-3 rounded">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <small class="d-block"><strong>Command:</strong> device/+/command/#</small>
+                                    <small class="d-block"><strong>Status:</strong> device/+/status</small>
+                                    <small class="d-block"><strong>SMS:</strong> device/+/sms/#</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <small class="d-block"><strong>Call:</strong> device/+/call/#</small>
+                                    <small class="d-block"><strong>USSD:</strong> device/+/ussd/#</small>
+                                    <small class="d-block"><strong>Webcam:</strong> device/+/webcam/#</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-primary" onclick="testMQTTConnection()">
+                            <i class="bi bi-plug me-2"></i>Test Connection
+                        </button>
+                        <button type="button" class="btn btn-success" onclick="saveMQTTSettings()">
+                            <i class="bi bi-check-lg me-2"></i>Save MQTT Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODEM SETTINGS ==================== -->
+    <div class="tab-pane fade" id="modem" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-broadcast me-2"></i>Modem / Cellular Settings
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="modemSettingsForm">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">APN</label>
+                            <input type="text" class="form-control" id="modemApn" placeholder="internet">
+                            <small class="text-muted">Access Point Name (e.g., internet, gpinternet)</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Authentication</label>
+                            <select class="form-select" id="modemAuth">
+                                <option value="none">None</option>
+                                <option value="pap">PAP</option>
+                                <option value="chap">CHAP</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">APN Username</label>
+                            <input type="text" class="form-control" id="modemApnUser" placeholder="(optional)">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">APN Password</label>
+                            <input type="password" class="form-control" id="modemApnPass" placeholder="(optional)">
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Network Mode</label>
+                            <select class="form-select" id="modemNetworkMode">
+                                <option value="auto">Auto</option>
+                                <option value="2g">2G Only</option>
+                                <option value="3g">3G Only</option>
+                                <option value="4g">4G Only</option>
+                                <option value="lte">LTE Only</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Preferred Network</label>
+                            <select class="form-select" id="modemPreferredNetwork">
+                                <option value="">Auto</option>
+                                <option value="ROBI">Robi</option>
+                                <option value="GP">Grameenphone</option>
+                                <option value="BL">Banglalink</option>
+                                <option value="TELETALK">Teletalk</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="modemAutoConnect" checked>
+                                <label class="form-check-label fw-bold" for="modemAutoConnect">Auto Connect</label>
+                            </div>
+                            <small class="text-muted d-block">Automatically connect to cellular network on startup</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">SIM PIN (optional)</label>
+                            <input type="password" class="form-control" id="modemPinCode" placeholder="****" maxlength="4">
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <h6 class="fw-bold mb-3">Network Scanning</h6>
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-outline-primary" onclick="scanNetworks()">
+                            <i class="bi bi-search me-2"></i>Scan Available Networks
+                        </button>
+                    </div>
+                    <div id="networkScanResults" class="mb-3" style="display: none;">
+                        <label class="form-label fw-bold">Available Networks</label>
+                        <div class="list-group" id="networksList"></div>
+                    </div>
+
+                    <button type="button" class="btn btn-success" onclick="saveModemSettings()">
+                        <i class="bi bi-check-lg me-2"></i>Save Modem Settings
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== WEBCAM SETTINGS ==================== -->
+    <div class="tab-pane fade" id="webcam" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-camera me-2"></i>Webcam Settings
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="webcamSettingsForm">
+                    <div class="mb-3 form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="webcamEnabled">
+                        <label class="form-check-label fw-bold" for="webcamEnabled">Enable Webcam</label>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Resolution</label>
+                            <select class="form-select" id="webcamResolution">
+                                <option value="1600x1200">1600x1200 (UXGA)</option>
+                                <option value="1280x1024">1280x1024 (SXGA)</option>
+                                <option value="1024x768">1024x768 (XGA)</option>
+                                <option value="800x600">800x600 (SVGA)</option>
+                                <option value="640x480" selected>640x480 (VGA)</option>
+                                <option value="352x288">352x288 (CIF)</option>
+                                <option value="320x240">320x240 (QVGA)</option>
+                                <option value="176x144">176x144 (QCIF)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Frame Rate (FPS)</label>
+                            <input type="range" class="form-range" id="webcamFps" min="1" max="60" value="15">
+                            <div class="d-flex justify-content-between">
+                                <span>1 fps</span>
+                                <span id="webcamFpsValue">15 fps</span>
+                                <span>60 fps</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">JPEG Quality</label>
+                            <input type="range" class="form-range" id="webcamQuality" min="10" max="100" value="80">
+                            <div class="d-flex justify-content-between">
+                                <span>10%</span>
+                                <span id="webcamQualityValue">80%</span>
+                                <span>100%</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Brightness</label>
+                            <input type="range" class="form-range" id="webcamBrightness" min="-2" max="2" value="0" step="1">
+                            <div class="d-flex justify-content-between">
+                                <span>-2</span>
+                                <span id="webcamBrightnessValue">0</span>
+                                <span>+2</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Contrast</label>
+                            <input type="range" class="form-range" id="webcamContrast" min="-2" max="2" value="0" step="1">
+                            <div class="d-flex justify-content-between">
+                                <span>-2</span>
+                                <span id="webcamContrastValue">0</span>
+                                <span>+2</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Saturation</label>
+                            <input type="range" class="form-range" id="webcamSaturation" min="-2" max="2" value="0" step="1">
+                            <div class="d-flex justify-content-between">
+                                <span>-2</span>
+                                <span id="webcamSaturationValue">0</span>
+                                <span>+2</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Sharpness</label>
+                            <input type="range" class="form-range" id="webcamSharpness" min="-2" max="2" value="0" step="1">
+                            <div class="d-flex justify-content-between">
+                                <span>-2</span>
+                                <span id="webcamSharpnessValue">0</span>
+                                <span>+2</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="webcamFlipH">
+                                <label class="form-check-label" for="webcamFlipH">Flip Horizontal</label>
+                            </div>
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="webcamFlipV">
+                                <label class="form-check-label" for="webcamFlipV">Flip Vertical</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <h6 class="fw-bold mb-3">Motion Detection</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="webcamMotionEnable">
+                                <label class="form-check-label fw-bold" for="webcamMotionEnable">Enable Motion Detection</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Sensitivity</label>
+                            <input type="range" class="form-range" id="webcamMotionSensitivity" min="1" max="100" value="50">
+                            <div class="d-flex justify-content-between">
+                                <span>Low</span>
+                                <span id="webcamSensitivityValue">50%</span>
+                                <span>High</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-success" onclick="saveWebcamSettings()">
+                        <i class="bi bi-check-lg me-2"></i>Save Webcam Settings
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== SYSTEM SETTINGS ==================== -->
+    <div class="tab-pane fade" id="system" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-cpu me-2"></i>System Settings
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="systemSettingsForm">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Device Name</label>
+                            <input type="text" class="form-control" id="systemDeviceName" placeholder="ESP32-S3 Gateway">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Timezone</label>
+                            <select class="form-select" id="systemTimezone">
+                                <option value="Asia/Dhaka">Asia/Dhaka (GMT+6)</option>
+                                <option value="Asia/Kolkata">Asia/Kolkata (GMT+5:30)</option>
+                                <option value="Asia/Singapore">Asia/Singapore (GMT+8)</option>
+                                <option value="UTC">UTC</option>
+                                <option value="America/New_York">America/New_York (GMT-5)</option>
+                                <option value="Europe/London">Europe/London (GMT+0)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Log Level</label>
+                            <select class="form-select" id="systemLogLevel">
+                                <option value="debug">Debug</option>
+                                <option value="info">Info</option>
+                                <option value="warn">Warning</option>
+                                <option value="error">Error</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check form-switch mt-4">
+                                <input class="form-check-input" type="checkbox" id="systemAutoRestart">
+                                <label class="form-check-label fw-bold" for="systemAutoRestart">Auto Restart Daily</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Restart Time</label>
+                            <input type="time" class="form-control" id="systemRestartTime" value="03:00">
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check form-switch mt-4">
+                                <input class="form-check-input" type="checkbox" id="systemBackupConfig" checked>
+                                <label class="form-check-label fw-bold" for="systemBackupConfig">Auto Backup Config</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <h6 class="fw-bold mb-3">System Actions</h6>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button type="button" class="btn btn-outline-primary" onclick="restartServer()">
+                            <i class="bi bi-arrow-repeat me-2"></i>Restart Server
+                        </button>
+                        <button type="button" class="btn btn-outline-info" onclick="viewLogs()">
+                            <i class="bi bi-journal-text me-2"></i>View Logs
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="downloadLogs()">
+                            <i class="bi bi-download me-2"></i>Download Logs
+                        </button>
+                    </div>
+
+                    <hr>
+
+                    <h6 class="fw-bold mb-3">User Management</h6>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Last Login</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <button type="button" class="btn btn-primary mt-2" onclick="addUser()">
+                        <i class="bi bi-person-plus me-2"></i>Add User
+                    </button>
+
+                    <button type="button" class="btn btn-success mt-3 w-100" onclick="saveSystemSettings()">
+                        <i class="bi bi-check-lg me-2"></i>Save System Settings
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== NOTIFICATIONS SETTINGS ==================== -->
+    <div class="tab-pane fade" id="notifications" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-bell me-2"></i>Notification Settings
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Email Notifications -->
+                <h6 class="fw-bold mb-3">Email Notifications</h6>
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="notifyEmailEnable">
+                            <label class="form-check-label fw-bold" for="notifyEmailEnable">Enable Email Notifications</label>
+                        </div>
+
+                        <div id="emailSettings" style="display: none;">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">SMTP Server</label>
+                                    <input type="text" class="form-control" id="notifySmtp" placeholder="smtp.gmail.com">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Port</label>
+                                    <input type="number" class="form-control" id="notifySmtpPort" value="587">
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check mt-4">
+                                        <input type="checkbox" class="form-check-input" id="notifySmtpSecure">
+                                        <label class="form-check-label" for="notifySmtpSecure">Use TLS/SSL</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Username</label>
+                                    <input type="text" class="form-control" id="notifyEmailUser" placeholder="user@gmail.com">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Password</label>
+                                    <input type="password" class="form-control" id="notifyEmailPass" placeholder="••••••••">
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">From Email</label>
+                                    <input type="email" class="form-control" id="notifyFrom" placeholder="alerts@esp32.local">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">To Email</label>
+                                    <input type="email" class="form-control" id="notifyTo" placeholder="you@example.com">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Telegram Notifications -->
+                <h6 class="fw-bold mb-3">Telegram Notifications</h6>
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="notifyTelegramEnable">
+                            <label class="form-check-label fw-bold" for="notifyTelegramEnable">Enable Telegram</label>
+                        </div>
+
+                        <div id="telegramSettings" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">Bot Token</label>
+                                <input type="text" class="form-control" id="notifyBotToken" placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz">
+                                <small class="text-muted">Get from @BotFather on Telegram</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Chat ID</label>
+                                <input type="text" class="form-control" id="notifyChatId" placeholder="-123456789">
+                                <small class="text-muted">Your user or group chat ID</small>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary" onclick="testTelegram()">
+                                <i class="bi bi-send me-2"></i>Test Telegram
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pushover Notifications -->
+                <h6 class="fw-bold mb-3">Pushover Notifications</h6>
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="notifyPushoverEnable">
+                            <label class="form-check-label fw-bold" for="notifyPushoverEnable">Enable Pushover</label>
+                        </div>
+
+                        <div id="pushoverSettings" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">App Token</label>
+                                <input type="text" class="form-control" id="notifyAppToken" placeholder="abcdefghijklmnopqrstuvwxyz12">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">User Key</label>
+                                <input type="text" class="form-control" id="notifyUserKey" placeholder="abcdefghijklmnopqrstuvwxyz12">
+                            </div>
+                            <button type="button" class="btn btn-outline-primary" onclick="testPushover()">
+                                <i class="bi bi-send me-2"></i>Test Pushover
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-success" onclick="saveNotificationSettings()">
+                    <i class="bi bi-check-lg me-2"></i>Save Notification Settings
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== BACKUP SETTINGS ==================== -->
+    <div class="tab-pane fade" id="backup" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-database me-2"></i>Backup & Restore
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="fw-bold mb-3">Create Backup</h6>
+                        <p class="text-muted small">Create a complete backup of all settings and data</p>
+                        <button type="button" class="btn btn-primary" onclick="createBackup()">
+                            <i class="bi bi-cloud-arrow-up me-2"></i>Create Backup Now
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="fw-bold mb-3">Auto Backup Settings</h6>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="backupAuto">
+                            <label class="form-check-label" for="backupAuto">Enable Auto Backup</label>
+                        </div>
+                        <div class="row">
+                            <div class="col-6">
+                                <label class="form-label small">Interval</label>
+                                <select class="form-select form-select-sm" id="backupInterval">
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small">Time</label>
+                                <input type="time" class="form-control form-control-sm" id="backupTime" value="02:00">
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <label class="form-label small">Keep last</label>
+                            <input type="number" class="form-control form-control-sm" id="backupKeepCount" value="7" min="1" max="30">
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+
+                <h6 class="fw-bold mb-3">Available Backups</h6>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Backup File</th>
+                                <th>Size</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="backupsTableBody">
+                            <tr>
+                                <td colspan="4" class="text-center py-3">
+                                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                    Loading backups...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add User Modal -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-plus me-2"></i>Add New User
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addUserForm">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Username</label>
+                        <input type="text" class="form-control" id="newUsername" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Password</label>
+                        <input type="password" class="form-control" id="newPassword" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Name</label>
+                        <input type="text" class="form-control" id="newName">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Email</label>
+                        <input type="email" class="form-control" id="newEmail">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Role</label>
+                        <select class="form-select" id="newRole">
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveNewUser()">Add User</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Logs Modal -->
+<div class="modal fade" id="logsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-journal-text me-2"></i>System Logs
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="logsContent" style="max-height: 500px; overflow-y: auto; background: #f8f9fa; padding: 1rem; border-radius: 0.25rem; font-size: 0.875rem;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="downloadLogs()">
+                    <i class="bi bi-download me-2"></i>Download
+                </button>
+                <button type="button" class="btn btn-danger" onclick="clearLogs()">
+                    <i class="bi bi-trash me-2"></i>Clear
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Load Settings script -->
+<script src="/js/settings.js"></script>
+
+<style>
+.nav-tabs .nav-link {
+    color: #495057;
+    font-weight: 500;
+}
+
+.nav-tabs .nav-link.active {
+    color: #0d6efd;
+    font-weight: 600;
+}
+
+.card {
+    margin-bottom: 1rem;
+}
+
+.form-range {
+    width: 100%;
+}
+
+#emailSettings, #telegramSettings, #pushoverSettings {
+    padding-top: 1rem;
+    border-top: 1px solid #dee2e6;
+    margin-top: 1rem;
+}
+
+@media (max-width: 767.98px) {
+    .nav-tabs .nav-link {
+        font-size: 0.875rem;
+        padding: 0.5rem;
+    }
+    
+    .nav-tabs .nav-link i {
+        display: block;
+        margin: 0 auto 0.25rem;
+    }
+}
+</style>

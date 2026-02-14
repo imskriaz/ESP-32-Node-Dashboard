@@ -3,25 +3,22 @@ const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const logger = require('../utils/logger');
 
-// Mock call state
-let currentCall = {
-    active: false,
-    number: null,
-    startTime: null,
-    duration: 0,
-    status: 'idle' // idle, dialing, ringing, connected, ended
-};
-
 // Get call logs
 router.get('/logs', async (req, res) => {
     try {
         const db = req.app.locals.db;
+        if (!db) {
+            throw new Error('Database not available');
+        }
+
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const offset = (page - 1) * limit;
 
         const calls = await db.all(`
-            SELECT * FROM calls 
+            SELECT c.*, 
+                   (SELECT name FROM contacts WHERE phone_number LIKE '%' || c.phone_number || '%' LIMIT 1) as contact_name
+            FROM calls c
             ORDER BY start_time DESC 
             LIMIT ? OFFSET ?
         `, [limit, offset]);
@@ -42,7 +39,7 @@ router.get('/logs', async (req, res) => {
         logger.error('API call logs error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to fetch call logs'
+            message: 'Failed to fetch call logs: ' + error.message
         });
     }
 });
@@ -51,6 +48,10 @@ router.get('/logs', async (req, res) => {
 router.get('/recent', async (req, res) => {
     try {
         const db = req.app.locals.db;
+        if (!db) {
+            throw new Error('Database not available');
+        }
+
         const limit = parseInt(req.query.limit) || 10;
 
         const calls = await db.all(`
@@ -67,7 +68,7 @@ router.get('/recent', async (req, res) => {
         logger.error('API recent calls error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to fetch recent calls'
+            message: 'Failed to fetch recent calls: ' + error.message
         });
     }
 });
@@ -87,158 +88,212 @@ router.post('/dial', [
         }
 
         const { number } = req.body;
+        const db = req.app.locals.db;
         
-        // Check if already in call
-        if (currentCall.active) {
-            return res.status(400).json({
-                success: false,
-                message: 'Device is already in a call'
-            });
+        if (!db) {
+            throw new Error('Database not available');
+        }
+        
+        // Format number
+        let formattedNumber = number;
+        try {
+            formattedNumber = number.startsWith('+') ? number : '+88' + number.replace(/\D/g, '');
+        } catch (formatError) {
+            logger.error('Number formatting error:', formatError);
+            formattedNumber = number;
         }
 
-        // Format number
-        const formattedNumber = number.startsWith('+') ? number : '+88' + number.replace(/\D/g, '');
-
-        // Start call (mock)
-        currentCall = {
-            active: true,
-            number: formattedNumber,
-            startTime: new Date(),
-            duration: 0,
-            status: 'dialing'
-        };
-
-        logger.info(`Initiating call to ${formattedNumber}`);
-
-        // Simulate call progress
-        setTimeout(() => {
-            if (currentCall.active && currentCall.status === 'dialing') {
-                currentCall.status = 'ringing';
-                req.io.emit('call:status', { status: 'ringing', number: formattedNumber });
-                
-                // Simulate answer after 3 seconds
-                setTimeout(() => {
-                    if (currentCall.active && currentCall.status === 'ringing') {
-                        currentCall.status = 'connected';
-                        currentCall.startTime = new Date(); // Reset start time for actual conversation
-                        req.io.emit('call:status', { status: 'connected', number: formattedNumber });
-                        
-                        // Start duration counter
-                        startDurationCounter(req.io);
-                    }
-                }, 3000);
-            }
-        }, 2000);
-
-        // Save to database
-        const db = req.app.locals.db;
+        // Save initial call record
         const result = await db.run(`
             INSERT INTO calls (phone_number, type, status, start_time) 
             VALUES (?, 'outgoing', 'dialing', CURRENT_TIMESTAMP)
         `, [formattedNumber]);
 
-        req.io.emit('call:started', {
-            id: result.lastID,
-            number: formattedNumber,
-            status: 'dialing'
-        });
+        // Send actual AT command via MQTT if connected
+        if (global.mqttService && global.mqttService.connected) {
+            try {
+                const mqttResult = await global.mqttService.makeCall('esp32-s3-1', formattedNumber);
+                
+                if (mqttResult.success) {
+                    logger.info(`Call initiated to ${formattedNumber}`);
+                    
+                    try {
+                        if (req.io) {
+                            req.io.emit('call:started', {
+                                id: result.lastID,
+                                number: formattedNumber,
+                                status: 'dialing'
+                            });
+                        }
+                    } catch (socketError) {
+                        logger.error('Error emitting socket event:', socketError);
+                    }
 
-        res.json({
-            success: true,
-            message: 'Call initiated',
-            callId: result.lastID,
-            number: formattedNumber
-        });
+                    res.json({
+                        success: true,
+                        message: 'Call initiated',
+                        callId: result.lastID,
+                        number: formattedNumber
+                    });
+                } else {
+                    // Update database to failed
+                    await db.run(`
+                        UPDATE calls SET status = 'failed' WHERE id = ?
+                    `, [result.lastID]);
+                    
+                    res.status(500).json({
+                        success: false,
+                        message: mqttResult.error || 'Failed to initiate call'
+                    });
+                }
+            } catch (mqttError) {
+                logger.error('MQTT error making call:', mqttError);
+                
+                await db.run(`
+                    UPDATE calls SET status = 'failed', notes = ? WHERE id = ?
+                `, [mqttError.message, result.lastID]);
+                
+                res.status(500).json({
+                    success: false,
+                    message: 'MQTT error: ' + mqttError.message
+                });
+            }
+        } else {
+            // Fallback for testing
+            logger.warn('MQTT not connected, simulating call');
+            
+            // Simulate call progress
+            setTimeout(async () => {
+                try {
+                    await db.run(`
+                        UPDATE calls 
+                        SET status = 'connected' 
+                        WHERE id = ?
+                    `, [result.lastID]);
+                    
+                    if (req.io) {
+                        req.io.emit('call:status', { 
+                            id: result.lastID,
+                            status: 'connected', 
+                            number: formattedNumber 
+                        });
+                    }
+                } catch (dbError) {
+                    logger.error('Error updating call status:', dbError);
+                }
+            }, 3000);
+            
+            res.json({
+                success: true,
+                message: 'Call initiated (simulated)',
+                callId: result.lastID,
+                number: formattedNumber
+            });
+        }
     } catch (error) {
         logger.error('API dial call error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to initiate call'
+            message: 'Failed to initiate call: ' + error.message
         });
     }
 });
 
-// End current call - FIXED SQL SYNTAX
+// End current call
 router.post('/end', async (req, res) => {
     try {
-        if (!currentCall.active) {
-            return res.status(400).json({
-                success: false,
-                message: 'No active call'
-            });
-        }
-
-        const duration = Math.floor((new Date() - currentCall.startTime) / 1000);
-        
-        // FIXED: Removed ORDER BY from UPDATE statement
         const db = req.app.locals.db;
-        await db.run(`
+        if (!db) {
+            throw new Error('Database not available');
+        }
+        
+        // Send AT command to end call via MQTT
+        if (global.mqttService && global.mqttService.connected) {
+            try {
+                await global.mqttService.publishCommand('esp32-s3-1', 'end-call', {});
+            } catch (mqttError) {
+                logger.error('MQTT error ending call:', mqttError);
+                // Continue with database update even if MQTT fails
+            }
+        }
+        
+        // Update the most recent active call
+        const result = await db.run(`
             UPDATE calls 
-            SET status = ?, duration = ?, end_time = CURRENT_TIMESTAMP 
-            WHERE phone_number = ? AND status IN ('dialing', 'ringing', 'connected')
-        `, ['ended', duration, currentCall.number]);
+            SET status = 'ended', 
+                end_time = CURRENT_TIMESTAMP,
+                duration = CAST((julianday('now') - julianday(start_time)) * 86400 AS INTEGER)
+            WHERE status IN ('dialing', 'ringing', 'connected')
+            ORDER BY start_time DESC
+            LIMIT 1
+        `);
 
-        logger.info(`Call ended to ${currentCall.number}, duration: ${duration}s`);
-
-        // Emit end event
-        req.io.emit('call:ended', {
-            number: currentCall.number,
-            duration,
-            status: 'ended'
-        });
-
-        // Reset current call
-        currentCall = {
-            active: false,
-            number: null,
-            startTime: null,
-            duration: 0,
-            status: 'idle'
-        };
+        if (result.changes > 0) {
+            logger.info('Call ended');
+            
+            try {
+                if (req.io) {
+                    req.io.emit('call:ended', {
+                        status: 'ended'
+                    });
+                }
+            } catch (socketError) {
+                logger.error('Error emitting socket event:', socketError);
+            }
+        }
 
         res.json({
             success: true,
-            message: 'Call ended',
-            duration
+            message: 'Call ended'
         });
     } catch (error) {
         logger.error('API end call error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to end call',
-            error: error.message
+            message: 'Failed to end call: ' + error.message
         });
     }
 });
 
-// Answer incoming call (mock)
+// Answer incoming call
 router.post('/answer', async (req, res) => {
     try {
-        if (!currentCall.active || currentCall.status !== 'ringing') {
-            return res.status(400).json({
-                success: false,
-                message: 'No incoming call to answer'
-            });
-        }
-
-        currentCall.status = 'connected';
-        currentCall.startTime = new Date();
-
-        // Update database - FIXED: Removed ORDER BY
         const db = req.app.locals.db;
-        await db.run(`
+        if (!db) {
+            throw new Error('Database not available');
+        }
+        
+        // Send AT command to answer call via MQTT
+        if (global.mqttService && global.mqttService.connected) {
+            try {
+                await global.mqttService.publishCommand('esp32-s3-1', 'answer-call', {});
+            } catch (mqttError) {
+                logger.error('MQTT error answering call:', mqttError);
+            }
+        }
+        
+        // Update the most recent ringing call
+        const result = await db.run(`
             UPDATE calls 
             SET status = 'answered', start_time = CURRENT_TIMESTAMP 
-            WHERE phone_number = ? AND status = 'ringing'
-        `, [currentCall.number]);
+            WHERE status = 'ringing'
+            ORDER BY start_time DESC
+            LIMIT 1
+        `);
 
-        req.io.emit('call:status', { 
-            status: 'connected', 
-            number: currentCall.number 
-        });
-
-        // Start duration counter
-        startDurationCounter(req.io);
+        if (result.changes > 0) {
+            logger.info('Call answered');
+            
+            try {
+                if (req.io) {
+                    req.io.emit('call:status', { 
+                        status: 'answered' 
+                    });
+                }
+            } catch (socketError) {
+                logger.error('Error emitting socket event:', socketError);
+            }
+        }
 
         res.json({
             success: true,
@@ -248,7 +303,7 @@ router.post('/answer', async (req, res) => {
         logger.error('API answer call error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to answer call'
+            message: 'Failed to answer call: ' + error.message
         });
     }
 });
@@ -256,34 +311,42 @@ router.post('/answer', async (req, res) => {
 // Reject incoming call
 router.post('/reject', async (req, res) => {
     try {
-        if (!currentCall.active || currentCall.status !== 'ringing') {
-            return res.status(400).json({
-                success: false,
-                message: 'No incoming call to reject'
-            });
-        }
-
-        // Update database - FIXED: Removed ORDER BY
         const db = req.app.locals.db;
-        await db.run(`
+        if (!db) {
+            throw new Error('Database not available');
+        }
+        
+        // Send AT command to reject call via MQTT
+        if (global.mqttService && global.mqttService.connected) {
+            try {
+                await global.mqttService.publishCommand('esp32-s3-1', 'reject-call', {});
+            } catch (mqttError) {
+                logger.error('MQTT error rejecting call:', mqttError);
+            }
+        }
+        
+        // Update the most recent ringing call
+        const result = await db.run(`
             UPDATE calls 
             SET status = 'rejected', end_time = CURRENT_TIMESTAMP 
-            WHERE phone_number = ? AND status = 'ringing'
-        `, [currentCall.number]);
+            WHERE status = 'ringing'
+            ORDER BY start_time DESC
+            LIMIT 1
+        `);
 
-        req.io.emit('call:ended', {
-            number: currentCall.number,
-            status: 'rejected'
-        });
-
-        // Reset current call
-        currentCall = {
-            active: false,
-            number: null,
-            startTime: null,
-            duration: 0,
-            status: 'idle'
-        };
+        if (result.changes > 0) {
+            logger.info('Call rejected');
+            
+            try {
+                if (req.io) {
+                    req.io.emit('call:ended', {
+                        status: 'rejected'
+                    });
+                }
+            } catch (socketError) {
+                logger.error('Error emitting socket event:', socketError);
+            }
+        }
 
         res.json({
             success: true,
@@ -293,27 +356,55 @@ router.post('/reject', async (req, res) => {
         logger.error('API reject call error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to reject call'
+            message: 'Failed to reject call: ' + error.message
         });
     }
 });
 
 // Get current call status
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
     try {
-        res.json({
-            success: true,
-            data: {
-                ...currentCall,
-                duration: currentCall.active ? 
-                    Math.floor((new Date() - currentCall.startTime) / 1000) : 0
-            }
-        });
+        const db = req.app.locals.db;
+        if (!db) {
+            throw new Error('Database not available');
+        }
+        
+        // Check if there's an active call in database
+        const activeCall = await db.get(`
+            SELECT * FROM calls 
+            WHERE status IN ('dialing', 'ringing', 'connected')
+            ORDER BY start_time DESC
+            LIMIT 1
+        `);
+
+        if (activeCall) {
+            const duration = activeCall.status === 'connected' ? 
+                Math.floor((new Date() - new Date(activeCall.start_time)) / 1000) : 0;
+            
+            res.json({
+                success: true,
+                data: {
+                    active: true,
+                    id: activeCall.id,
+                    number: activeCall.phone_number,
+                    status: activeCall.status,
+                    startTime: activeCall.start_time,
+                    duration
+                }
+            });
+        } else {
+            res.json({
+                success: true,
+                data: {
+                    active: false
+                }
+            });
+        }
     } catch (error) {
         logger.error('API call status error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to get call status'
+            message: 'Failed to get call status: ' + error.message
         });
     }
 });
@@ -323,6 +414,10 @@ router.delete('/logs/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const db = req.app.locals.db;
+        
+        if (!db) {
+            throw new Error('Database not available');
+        }
 
         const result = await db.run('DELETE FROM calls WHERE id = ?', [id]);
 
@@ -335,7 +430,13 @@ router.delete('/logs/:id', async (req, res) => {
 
         logger.info(`Call log deleted: ${id}`);
         
-        req.io.emit('call:log-deleted', { id });
+        try {
+            if (req.io) {
+                req.io.emit('call:log-deleted', { id });
+            }
+        } catch (socketError) {
+            logger.error('Error emitting socket event:', socketError);
+        }
 
         res.json({
             success: true,
@@ -345,29 +446,180 @@ router.delete('/logs/:id', async (req, res) => {
         logger.error('API delete call log error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to delete call log'
+            message: 'Failed to delete call log: ' + error.message
         });
     }
 });
 
-// Helper function to start duration counter
-function startDurationCounter(io) {
-    const interval = setInterval(() => {
-        if (currentCall.active && currentCall.status === 'connected') {
-            const duration = Math.floor((new Date() - currentCall.startTime) / 1000);
-            io.emit('call:duration', { duration });
-            
-            // Update database every 10 seconds
-            if (duration % 10 === 0) {
-                // Update duration in database
-                const db = require('../config/database'); // You might need to import this properly
-                // db.run('UPDATE calls SET duration = ? WHERE phone_number = ? AND status = ?', 
-                //        [duration, currentCall.number, 'connected']);
+// Get single call
+router.get('/logs/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const db = req.app.locals.db;
+        
+        if (!db) {
+            throw new Error('Database not available');
+        }
+
+        const call = await db.get('SELECT * FROM calls WHERE id = ?', [id]);
+
+        if (!call) {
+            return res.status(404).json({
+                success: false,
+                message: 'Call not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: call
+        });
+    } catch (error) {
+        logger.error('API get call error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch call: ' + error.message
+        });
+    }
+});
+
+// Update call notes
+router.patch('/logs/:id/notes', [
+    body('notes').optional()
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                errors: errors.array()
+            });
+        }
+
+        const { id } = req.params;
+        const { notes } = req.body;
+        const db = req.app.locals.db;
+        
+        if (!db) {
+            throw new Error('Database not available');
+        }
+
+        await db.run(
+            'UPDATE calls SET notes = ? WHERE id = ?',
+            [notes || null, id]
+        );
+
+        res.json({
+            success: true,
+            message: 'Call notes updated'
+        });
+    } catch (error) {
+        logger.error('API update call notes error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update call notes: ' + error.message
+        });
+    }
+});
+
+// Toggle call hold
+router.post('/hold', [
+    body('hold').isBoolean()
+], async (req, res) => {
+    try {
+        const { hold } = req.body;
+        
+        // Send AT command via MQTT
+        if (global.mqttService && global.mqttService.connected) {
+            try {
+                await global.mqttService.publishCommand('esp32-s3-1', 'hold-call', { hold });
+            } catch (mqttError) {
+                logger.error('MQTT error toggling hold:', mqttError);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Failed to send hold command: ' + mqttError.message
+                });
             }
         } else {
-            clearInterval(interval);
+            return res.status(503).json({
+                success: false,
+                message: 'MQTT not connected'
+            });
         }
-    }, 1000);
-}
+        
+        logger.info(`Call ${hold ? 'held' : 'resumed'}`);
+        
+        try {
+            if (req.io) {
+                req.io.emit('call:hold', { 
+                    onHold: hold 
+                });
+            }
+        } catch (socketError) {
+            logger.error('Error emitting socket event:', socketError);
+        }
+        
+        res.json({
+            success: true,
+            message: hold ? 'Call on hold' : 'Call resumed'
+        });
+    } catch (error) {
+        logger.error('API hold call error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to toggle hold: ' + error.message
+        });
+    }
+});
+
+// Transfer call
+router.post('/transfer', [
+    body('number').notEmpty()
+], async (req, res) => {
+    try {
+        const { number } = req.body;
+        
+        // Send AT command via MQTT
+        if (global.mqttService && global.mqttService.connected) {
+            try {
+                await global.mqttService.publishCommand('esp32-s3-1', 'transfer-call', { number });
+            } catch (mqttError) {
+                logger.error('MQTT error transferring call:', mqttError);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Failed to send transfer command: ' + mqttError.message
+                });
+            }
+        } else {
+            return res.status(503).json({
+                success: false,
+                message: 'MQTT not connected'
+            });
+        }
+        
+        logger.info(`Transferring call to ${number}`);
+        
+        try {
+            if (req.io) {
+                req.io.emit('call:transfer', { 
+                    to: number 
+                });
+            }
+        } catch (socketError) {
+            logger.error('Error emitting socket event:', socketError);
+        }
+        
+        res.json({
+            success: true,
+            message: 'Call transfer initiated'
+        });
+    } catch (error) {
+        logger.error('API transfer call error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to transfer call: ' + error.message
+        });
+    }
+});
 
 module.exports = router;

@@ -58,7 +58,7 @@
                     </div>
                     <div class="flex-grow-1 ms-3">
                         <h6 class="mb-1">Total Calls</h6>
-                        <h4 class="mb-0" id="totalCalls">0</h4>
+                        <h4 class="mb-0" id="totalCalls"><%= stats?.total || 0 %></h4>
                     </div>
                 </div>
             </div>
@@ -72,23 +72,8 @@
                         <i class="bi bi-telephone-outbound fs-2 text-success"></i>
                     </div>
                     <div class="flex-grow-1 ms-3">
-                        <h6 class="mb-1">Outgoing</h6>
-                        <h4 class="mb-0" id="outgoingCalls">0</h4>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card bg-info bg-opacity-10 border-0">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0">
-                        <i class="bi bi-telephone-inbound fs-2 text-info"></i>
-                    </div>
-                    <div class="flex-grow-1 ms-3">
-                        <h6 class="mb-1">Incoming</h6>
-                        <h4 class="mb-0" id="incomingCalls">0</h4>
+                        <h6 class="mb-1">Answered</h6>
+                        <h4 class="mb-0" id="outgoingCalls"><%= stats?.answered || 0 %></h4>
                     </div>
                 </div>
             </div>
@@ -103,7 +88,7 @@
                     </div>
                     <div class="flex-grow-1 ms-3">
                         <h6 class="mb-1">Missed</h6>
-                        <h4 class="mb-0" id="missedCalls">0</h4>
+                        <h4 class="mb-0" id="missedCalls"><%= stats?.missed || 0 %></h4>
                     </div>
                 </div>
             </div>
@@ -252,15 +237,11 @@
                 </div>
             </div>
             <div class="card-body p-0">
-                <!-- Contact groups -->
+                <!-- Contact filters by company -->
                 <div class="px-3 py-2 bg-light border-bottom">
-                    <div class="d-flex gap-2 flex-wrap" id="contactGroupFilters">
-                        <span class="badge bg-primary cursor-pointer" onclick="filterContactsByGroup('')">All</span>
-                        <span class="badge bg-secondary cursor-pointer" onclick="filterContactsByGroup('work')">Work</span>
-                        <span class="badge bg-success cursor-pointer" onclick="filterContactsByGroup('family')">Family</span>
-                        <span class="badge bg-info cursor-pointer" onclick="filterContactsByGroup('friends')">Friends</span>
-                        <span class="badge bg-warning cursor-pointer" onclick="filterContactsByGroup('service')">Service</span>
-                        <span class="badge bg-danger cursor-pointer" onclick="filterContactsByGroup('emergency')">Emergency</span>
+                    <div class="d-flex gap-2 flex-wrap" id="contactCompanyFilters">
+                        <span class="badge bg-primary cursor-pointer" onclick="filterContactsByCompany('')">All</span>
+                        <!-- Will be populated by JavaScript based on unique companies -->
                     </div>
                 </div>
                 
@@ -460,14 +441,9 @@
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
-                        <select class="form-select" id="modalContactGroup">
-                            <option value="">All Groups</option>
-                            <option value="work">Work</option>
-                            <option value="family">Family</option>
-                            <option value="friends">Friends</option>
-                            <option value="service">Service</option>
-                            <option value="emergency">Emergency</option>
-                            <option value="health">Health</option>
+                        <select class="form-select" id="modalContactCompany">
+                            <option value="">All Companies</option>
+                            <!-- Will be populated by JavaScript -->
                         </select>
                     </div>
                     <div class="col-6 col-md-3">
@@ -521,19 +497,6 @@
                     <div class="mb-3">
                         <label class="form-label fw-bold">Company</label>
                         <input type="text" class="form-control" id="contactCompany">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Group</label>
-                        <select class="form-select" id="contactGroup">
-                            <option value="general">General</option>
-                            <option value="work">Work</option>
-                            <option value="family">Family</option>
-                            <option value="friends">Friends</option>
-                            <option value="service">Service</option>
-                            <option value="emergency">Emergency</option>
-                            <option value="health">Health</option>
-                        </select>
                     </div>
                     
                     <div class="mb-3">
@@ -621,18 +584,6 @@
 
 .call-type-icon {
     font-size: 1.25rem;
-}
-
-.call-type-incoming {
-    color: #28a745;
-}
-
-.call-type-outgoing {
-    color: #007bff;
-}
-
-.call-type-missed {
-    color: #dc3545;
 }
 
 #activeCallBanner {

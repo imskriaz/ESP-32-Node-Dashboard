@@ -8,5 +8,6 @@ router.use('/status', require('./status'));
 router.use('/modem', require('./modem'));
 router.use('/ussd', require('./ussd'));
 router.use('/webcam', require('./webcam'));
+router.use('/settings', require('./settings'));
 
 module.exports = router;

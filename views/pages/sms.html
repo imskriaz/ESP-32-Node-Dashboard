@@ -471,7 +471,7 @@
             <div class="modal-body">
                 <!-- Search and filters -->
                 <div class="row g-2 mb-3">
-                    <div class="col-12 col-md-6">
+                    <div class="col-12 col-md-8">
                         <div class="input-group">
                             <span class="input-group-text bg-white">
                                 <i class="bi bi-search"></i>
@@ -479,18 +479,7 @@
                             <input type="text" class="form-control" id="contactSearch" placeholder="Search contacts...">
                         </div>
                     </div>
-                    <div class="col-6 col-md-3">
-                        <select class="form-select" id="contactGroupFilter">
-                            <option value="">All Groups</option>
-                            <option value="work">Work</option>
-                            <option value="family">Family</option>
-                            <option value="friends">Friends</option>
-                            <option value="service">Service</option>
-                            <option value="emergency">Emergency</option>
-                            <option value="health">Health</option>
-                        </select>
-                    </div>
-                    <div class="col-6 col-md-3">
+                    <div class="col-6 col-md-4">
                         <select class="form-select" id="contactSort">
                             <option value="name">Sort by Name</option>
                             <option value="recent">Recently Added</option>
@@ -503,8 +492,6 @@
                 <div class="d-flex gap-3 mb-3 flex-wrap">
                     <span class="badge bg-primary" id="totalContacts">Loading...</span>
                     <span class="badge bg-warning" id="favoriteContacts">Loading...</span>
-                    <span class="badge bg-info" id="workContacts">Loading...</span>
-                    <span class="badge bg-success" id="familyContacts">Loading...</span>
                 </div>
 
                 <!-- Contacts list -->
@@ -559,19 +546,6 @@
                     <div class="mb-3">
                         <label class="form-label fw-bold">Company</label>
                         <input type="text" class="form-control" id="contactCompany">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Group</label>
-                        <select class="form-select" id="contactGroup">
-                            <option value="general">General</option>
-                            <option value="work">Work</option>
-                            <option value="family">Family</option>
-                            <option value="friends">Friends</option>
-                            <option value="service">Service</option>
-                            <option value="emergency">Emergency</option>
-                            <option value="health">Health</option>
-                        </select>
                     </div>
                     
                     <div class="mb-3">

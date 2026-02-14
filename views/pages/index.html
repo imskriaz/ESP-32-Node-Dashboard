@@ -27,7 +27,7 @@
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
 
-<!-- Status Cards Row - FIXED: Using Bootstrap grid properly -->
+<!-- Status Cards Row -->
 <div class="row g-3 mb-4">
     <!-- Signal Card -->
     <div class="col-12 col-sm-6 col-md-3">
@@ -46,7 +46,7 @@
                     <div class="progress-bar bg-primary" style="width: <%= deviceStatus.signal %>%"></div>
                 </div>
                 <small class="text-muted mt-2 d-block">
-                    <i class="bi bi-activity me-1"></i>RSSI: -67 dBm
+                    <i class="bi bi-activity me-1"></i>Operator: <%= deviceStatus.operator || 'Robi' %>
                 </small>
             </div>
         </div>
@@ -91,7 +91,7 @@
                 <div class="mt-3">
                     <div class="d-flex justify-content-between">
                         <small class="text-muted">Operator</small>
-                        <small class="fw-bold">Robi</small>
+                        <small class="fw-bold"><%= deviceStatus.operator || 'Robi' %></small>
                     </div>
                     <div class="d-flex justify-content-between">
                         <small class="text-muted">Technology</small>
@@ -119,7 +119,7 @@
                     <div class="progress-bar bg-warning" style="width: <%= deviceStatus.storage %>%"></div>
                 </div>
                 <small class="text-muted mt-2 d-block">
-                    <i class="bi bi-sd-card me-1"></i>SD Card: 14.2GB/32GB
+                    <i class="bi bi-sd-card me-1"></i>SD Card: <%= Math.round((deviceStatus.storage / 100) * 32) %>GB/32GB
                 </small>
             </div>
         </div>
@@ -150,13 +150,13 @@
             <div class="col-6 col-md-3">
                 <div class="d-flex flex-column">
                     <small class="text-muted text-uppercase small">IP Address</small>
-                    <strong class="fs-5">10.120.45.67</strong>
+                    <strong class="fs-5"><%= deviceStatus.ip || '0.0.0.0' %></strong>
                 </div>
             </div>
             <div class="col-6 col-md-3">
                 <div class="d-flex flex-column">
                     <small class="text-muted text-uppercase small">IMEI</small>
-                    <strong class="fs-5 text-truncate">12345...2345</strong>
+                    <strong class="fs-5 text-truncate"><%= deviceStatus.imei %></strong>
                 </div>
             </div>
         </div>
@@ -176,11 +176,11 @@
                 <i class="bi bi-chat-dots me-2"></i>
                 <span class="d-none d-sm-inline">Send</span> SMS
             </button>
-            <button type="button" class="btn btn-outline-success flex-fill">
+            <button type="button" class="btn btn-outline-success flex-fill" onclick="quickBalance()">
                 <i class="bi bi-cash-stack me-2"></i>
                 <span class="d-none d-sm-inline">Check</span> Balance
             </button>
-            <button type="button" class="btn btn-outline-warning flex-fill">
+            <button type="button" class="btn btn-outline-warning flex-fill" onclick="restartModem()">
                 <i class="bi bi-arrow-repeat me-2"></i>
                 <span class="d-none d-sm-inline">Restart</span> Modem
             </button>
@@ -188,10 +188,10 @@
     </div>
 </div>
 
-<!-- Recent SMS Section -->
+<!-- Recent Activity Row -->
 <div class="row g-3">
     <!-- Recent SMS List -->
-    <div class="col-12 col-lg-8">
+    <div class="col-12 col-lg-4">
         <div class="card h-100">
             <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 fs-6 fw-semibold">
@@ -205,7 +205,7 @@
             <div class="card-body p-0">
                 <% if (recentSms && recentSms.length > 0) { %>
                     <div class="list-group list-group-flush">
-                        <% recentSms.forEach(sms => { %>
+                        <% recentSms.slice(0, 3).forEach(sms => { %>
                             <div class="list-group-item list-group-item-action p-3">
                                 <div class="d-flex gap-3">
                                     <div class="flex-shrink-0">
@@ -239,6 +239,54 @@
         </div>
     </div>
 
+    <!-- Recent Calls -->
+    <div class="col-12 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fs-6 fw-semibold">
+                    <i class="bi bi-telephone me-2"></i>Recent Calls
+                </h5>
+                <a href="/calls" class="btn btn-sm btn-primary">
+                    <span class="d-none d-sm-inline">View All</span>
+                    <i class="bi bi-arrow-right d-sm-none"></i>
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <% if (recentCalls && recentCalls.length > 0) { %>
+                    <div class="list-group list-group-flush">
+                        <% recentCalls.slice(0, 3).forEach(call => { %>
+                            <div class="list-group-item p-3">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="flex-shrink-0">
+                                        <div class="bg-light rounded-circle p-2">
+                                            <i class="bi bi-telephone fs-5 
+                                                <%= call.type === 'incoming' ? 'text-success' : 'text-primary' %>"></i>
+                                        </div>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex justify-content-between">
+                                            <h6 class="mb-0"><%= call.phone_number %></h6>
+                                            <small class="text-muted"><%= moment(call.start_time).fromNow() %></small>
+                                        </div>
+                                        <small class="text-muted">
+                                            <%= call.type === 'incoming' ? 'Incoming' : 'Outgoing' %> • 
+                                            <%= call.duration > 0 ? Math.floor(call.duration / 60) + ':' + ('0' + (call.duration % 60)).slice(-2) : 'No answer' %>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        <% }); %>
+                    </div>
+                <% } else { %>
+                    <div class="text-center py-5">
+                        <i class="bi bi-telephone-x fs-1 text-muted"></i>
+                        <p class="text-muted mt-3 mb-0">No recent calls</p>
+                    </div>
+                <% } %>
+            </div>
+        </div>
+    </div>
+
     <!-- System Activity -->
     <div class="col-12 col-lg-4">
         <div class="card h-100">
@@ -254,34 +302,48 @@
                             <i class="bi bi-arrow-up-circle text-success me-2"></i>
                             Data Sent
                         </div>
-                        <span class="badge bg-light text-dark">156 MB</span>
+                        <span class="badge bg-light text-dark"><%= dataUsage.sent %> MB</span>
                     </div>
                     <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
                         <div>
                             <i class="bi bi-arrow-down-circle text-primary me-2"></i>
                             Data Received
                         </div>
-                        <span class="badge bg-light text-dark">1.2 GB</span>
+                        <span class="badge bg-light text-dark"><%= dataUsage.received %> MB</span>
                     </div>
                     <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
                         <div>
                             <i class="bi bi-envelope text-warning me-2"></i>
                             SMS Sent
                         </div>
-                        <span class="badge bg-light text-dark">23</span>
+                        <span class="badge bg-light text-dark"><%= dataUsage.smsSent %></span>
                     </div>
                     <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
                         <div>
                             <i class="bi bi-telephone text-info me-2"></i>
                             Call Duration
                         </div>
-                        <span class="badge bg-light text-dark">45 min</span>
+                        <span class="badge bg-light text-dark"><%= Math.floor(dataUsage.callDuration / 60) %> min</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
+                        <div>
+                            <i class="bi bi-person-lines-fill text-secondary me-2"></i>
+                            Contacts
+                        </div>
+                        <span class="badge bg-light text-dark"><%= contactCount %></span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
+                        <div>
+                            <i class="bi bi-telephone-forward text-secondary me-2"></i>
+                            USSD Queries
+                        </div>
+                        <span class="badge bg-light text-dark"><%= ussdCount %></span>
                     </div>
                 </div>
             </div>
             <div class="card-footer bg-white py-2">
                 <small class="text-muted">
-                    <i class="bi bi-clock me-1"></i>Updated 2 min ago
+                    <i class="bi bi-clock me-1"></i>Updated just now
                 </small>
             </div>
         </div>
@@ -344,6 +406,40 @@
 <script>
 function refreshDashboard() {
     location.reload();
+}
+
+function quickBalance() {
+    fetch('/api/quick/balance', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Balance check initiated. Check USSD history for response.');
+            } else {
+                alert('Failed to check balance: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error checking balance');
+        });
+}
+
+function restartModem() {
+    if (confirm('Restart modem? This will disconnect your internet connection temporarily.')) {
+        fetch('/api/quick/restart-modem', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Modem restart command sent');
+                } else {
+                    alert('Failed to restart modem: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error restarting modem');
+            });
+    }
 }
 
 // Character counter

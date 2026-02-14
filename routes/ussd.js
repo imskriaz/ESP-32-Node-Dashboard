@@ -3,70 +3,14 @@ const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const logger = require('../utils/logger');
 
-// USSD Service State
-let ussdState = {
-    sessionActive: false,
-    currentCode: null,
-    currentResponse: null,
-    lastRequest: null,
-    menuLevel: 0,
-    sessionId: null,
-    menuStack: [] // For multi-level menus
-};
-
-// Mock database for menu responses (in production, this would be in SQLite)
-const menuResponses = {
-    'main': `Welcome to USSD Menu
-1. Check Balance
-2. Data Balance
-3. Special Offers
-4. Customer Care
-0. Exit`,
-
-    'balance': `Your current balance is $25.50
-1. Check again
-2. Main Menu
-0. Exit`,
-
-    'data': `Data balance: 2.3GB remaining
-1. Buy more data
-2. Main Menu
-0. Exit`,
-
-    'offers': `Special Offers:
-1. 5GB for $10
-2. Unlimited calls for $20
-3. 1000 SMS for $5
-4. Main Menu
-0. Exit`,
-
-    'offers_1': `You have subscribed to 5GB for $10.
-Valid for 30 days.
-1. Main Menu
-0. Exit`,
-
-    'offers_2': `You have subscribed to Unlimited calls for $20.
-Valid for 30 days.
-1. Main Menu
-0. Exit`,
-
-    'offers_3': `You have subscribed to 1000 SMS for $5.
-Valid for 30 days.
-1. Main Menu
-0. Exit`,
-
-    'customer': `Customer Care: Please hold for an operator.
-1. Call now
-2. Main Menu
-0. Exit`
-};
-
-// ==================== USSD HISTORY ====================
-
 // Get all USSD history
 router.get('/history', async (req, res) => {
     try {
         const db = req.app.locals.db;
+        if (!db) {
+            throw new Error('Database not available');
+        }
+
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const offset = (page - 1) * limit;
@@ -93,7 +37,7 @@ router.get('/history', async (req, res) => {
         logger.error('API USSD history error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to fetch USSD history'
+            message: 'Failed to fetch USSD history: ' + error.message
         });
     }
 });
@@ -115,231 +59,101 @@ router.post('/send', [
 
         const { code, description } = req.body;
         const db = req.app.locals.db;
-
-        // Determine response based on code
-        let response = '';
-        let menuLevel = 0;
-        let menuState = 'main';
-
-        // Main menu codes
-        if (code === '*123#' || code === '*456#' || code === '*789#') {
-            response = menuResponses.main;
-            menuLevel = 1;
-            menuState = 'main';
-        }
-        // Balance check
-        else if (code === '*123*1#' || code === '*124#') {
-            response = menuResponses.balance;
-            menuLevel = 1;
-            menuState = 'balance';
-        }
-        // Data balance
-        else if (code === '*123*2#' || code === '*125#') {
-            response = menuResponses.data;
-            menuLevel = 1;
-            menuState = 'data';
-        }
-        // Special offers
-        else if (code === '*123*3#' || code === '*500#') {
-            response = menuResponses.offers;
-            menuLevel = 1;
-            menuState = 'offers';
-        }
-        // Customer care
-        else if (code === '*123*4#' || code === '611' || code === '121') {
-            response = menuResponses.customer;
-            menuLevel = 1;
-            menuState = 'customer';
-        }
-        // Generic response
-        else {
-            response = `USSD Response for ${code}:
-Your request has been processed successfully.
-Thank you for using our service.`;
-            menuLevel = 0;
+        
+        if (!db) {
+            throw new Error('Database not available');
         }
 
-        // Update session state
-        ussdState = {
-            sessionActive: menuLevel > 0,
-            currentCode: code,
-            currentResponse: response,
-            lastRequest: new Date(),
-            menuLevel: menuLevel,
-            sessionId: Date.now().toString(),
-            menuState: menuState,
-            menuStack: menuLevel > 0 ? [menuState] : []
-        };
-
-        // Save to database
+        // Save initial request
         const result = await db.run(`
-            INSERT INTO ussd (code, description, response, status, timestamp) 
-            VALUES (?, ?, ?, 'success', CURRENT_TIMESTAMP)
-        `, [code, description || 'USSD Request', response]);
+            INSERT INTO ussd (code, description, status, timestamp) 
+            VALUES (?, ?, 'pending', CURRENT_TIMESTAMP)
+        `, [code, description || 'USSD Request']);
 
-        logger.info(`USSD request sent: ${code}`);
-
-        // Emit socket event
-        if (req.io) {
-            req.io.emit('ussd:response', {
-                id: result.lastID,
-                code,
-                response,
-                timestamp: new Date().toISOString()
+        // Send via MQTT if connected
+        if (global.mqttService && global.mqttService.connected) {
+            try {
+                const mqttResult = await global.mqttService.sendUssd('esp32-s3-1', code);
+                
+                if (mqttResult.success) {
+                    logger.info(`USSD request sent: ${code}`);
+                    
+                    res.json({
+                        success: true,
+                        message: 'USSD request sent',
+                        data: {
+                            id: result.lastID,
+                            code,
+                            status: 'pending',
+                            messageId: mqttResult.messageId
+                        }
+                    });
+                } else {
+                    // Update database to failed
+                    await db.run(`
+                        UPDATE ussd SET status = 'failed', response = ? WHERE id = ?
+                    `, [mqttResult.error || 'Failed to send', result.lastID]);
+                    
+                    res.status(500).json({
+                        success: false,
+                        message: mqttResult.error || 'Failed to send USSD request'
+                    });
+                }
+            } catch (mqttError) {
+                logger.error('MQTT error sending USSD:', mqttError);
+                
+                // Update database to failed
+                await db.run(`
+                    UPDATE ussd SET status = 'failed', response = ? WHERE id = ?
+                `, [mqttError.message, result.lastID]);
+                
+                res.status(500).json({
+                    success: false,
+                    message: 'MQTT error: ' + mqttError.message
+                });
+            }
+        } else {
+            // Fallback for testing
+            logger.warn('MQTT not connected, using simulation');
+            
+            // Simulate response after delay
+            setTimeout(async () => {
+                try {
+                    const mockResponse = `USSD Response for ${code}:\nYour request has been processed successfully.\nThank you for using our service.`;
+                    
+                    await db.run(`
+                        UPDATE ussd 
+                        SET response = ?, status = 'success' 
+                        WHERE id = ?
+                    `, [mockResponse, result.lastID]);
+                    
+                    if (req.io) {
+                        req.io.emit('ussd:response', {
+                            id: result.lastID,
+                            code,
+                            response: mockResponse
+                        });
+                    }
+                } catch (dbError) {
+                    logger.error('Error updating USSD response:', dbError);
+                }
+            }, 2000);
+            
+            res.json({
+                success: true,
+                message: 'USSD request sent (simulated)',
+                data: {
+                    id: result.lastID,
+                    code,
+                    status: 'pending'
+                }
             });
         }
-
-        res.json({
-            success: true,
-            message: 'USSD request processed',
-            data: {
-                id: result.lastID,
-                code,
-                response,
-                sessionId: ussdState.sessionId,
-                menuLevel: ussdState.menuLevel,
-                menuState: ussdState.menuState
-            }
-        });
     } catch (error) {
         logger.error('API USSD send error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to send USSD request'
-        });
-    }
-});
-
-// Send USSD response (for menu navigation)
-router.post('/respond', [
-    body('sessionId').notEmpty().withMessage('Session ID is required'),
-    body('choice').notEmpty().withMessage('Choice is required')
-], async (req, res) => {
-    try {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({
-                success: false,
-                errors: errors.array()
-            });
-        }
-
-        const { sessionId, choice } = req.body;
-
-        // Validate session
-        if (!ussdState.sessionActive || ussdState.sessionId !== sessionId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid or expired session'
-            });
-        }
-
-        let response = '';
-        let sessionEnded = false;
-        let newMenuState = ussdState.menuState;
-
-        // Handle menu navigation based on current state
-        if (choice === '0') {
-            response = 'Thank you for using our service. Goodbye.';
-            sessionEnded = true;
-        }
-        else if (ussdState.menuState === 'main') {
-            switch(choice) {
-                case '1':
-                    response = menuResponses.balance;
-                    newMenuState = 'balance';
-                    ussdState.menuStack.push('balance');
-                    break;
-                case '2':
-                    response = menuResponses.data;
-                    newMenuState = 'data';
-                    ussdState.menuStack.push('data');
-                    break;
-                case '3':
-                    response = menuResponses.offers;
-                    newMenuState = 'offers';
-                    ussdState.menuStack.push('offers');
-                    break;
-                case '4':
-                    response = menuResponses.customer;
-                    newMenuState = 'customer';
-                    ussdState.menuStack.push('customer');
-                    break;
-                default:
-                    response = 'Invalid choice. Please try again.\n' + menuResponses.main;
-            }
-        }
-        else if (ussdState.menuState === 'offers') {
-            if (choice === '1') {
-                response = menuResponses.offers_1;
-                newMenuState = 'offers_1';
-            } else if (choice === '2') {
-                response = menuResponses.offers_2;
-                newMenuState = 'offers_2';
-            } else if (choice === '3') {
-                response = menuResponses.offers_3;
-                newMenuState = 'offers_3';
-            } else if (choice === '4') {
-                response = menuResponses.main;
-                newMenuState = 'main';
-                ussdState.menuStack.pop();
-            } else {
-                response = 'Invalid choice. Please try again.\n' + menuResponses.offers;
-            }
-        }
-        else if (ussdState.menuState === 'balance' || ussdState.menuState === 'data' || ussdState.menuState === 'customer') {
-            if (choice === '1') {
-                // Go back to same screen (refresh)
-                response = ussdState.menuState === 'balance' ? menuResponses.balance :
-                          ussdState.menuState === 'data' ? menuResponses.data :
-                          menuResponses.customer;
-            } else if (choice === '2') {
-                response = menuResponses.main;
-                newMenuState = 'main';
-                ussdState.menuStack.pop();
-            } else {
-                response = 'Invalid choice. Please try again.\n' + 
-                          (ussdState.menuState === 'balance' ? menuResponses.balance :
-                           ussdState.menuState === 'data' ? menuResponses.data :
-                           menuResponses.customer);
-            }
-        }
-        else if (ussdState.menuState.startsWith('offers_')) {
-            if (choice === '1') {
-                response = menuResponses.main;
-                newMenuState = 'main';
-                ussdState.menuStack = ['main'];
-            } else {
-                response = 'Invalid choice. Please try again.\n' + 
-                          (ussdState.menuState === 'offers_1' ? menuResponses.offers_1 :
-                           ussdState.menuState === 'offers_2' ? menuResponses.offers_2 :
-                           menuResponses.offers_3);
-            }
-        }
-
-        // Update session state
-        ussdState.currentResponse = response;
-        ussdState.menuState = newMenuState;
-        
-        if (sessionEnded) {
-            ussdState.sessionActive = false;
-            ussdState.currentCode = null;
-            ussdState.menuLevel = 0;
-            ussdState.menuStack = [];
-        }
-
-        res.json({
-            success: true,
-            data: {
-                response,
-                sessionEnded
-            }
-        });
-    } catch (error) {
-        logger.error('API USSD respond error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to process USSD response'
+            message: 'Failed to send USSD request: ' + error.message
         });
     }
 });
@@ -347,22 +161,22 @@ router.post('/respond', [
 // Get USSD session status
 router.get('/session', (req, res) => {
     try {
+        // In production, this would track actual USSD sessions
         res.json({
             success: true,
             data: {
-                active: ussdState.sessionActive,
-                currentCode: ussdState.currentCode,
-                lastRequest: ussdState.lastRequest,
-                menuLevel: ussdState.menuLevel,
-                sessionId: ussdState.sessionId,
-                menuState: ussdState.menuState
+                active: false,
+                currentCode: null,
+                lastRequest: null,
+                menuLevel: 0,
+                sessionId: null
             }
         });
     } catch (error) {
         logger.error('API USSD session error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to get session status'
+            message: 'Failed to get session status: ' + error.message
         });
     }
 });
@@ -370,14 +184,7 @@ router.get('/session', (req, res) => {
 // End USSD session
 router.post('/session/end', (req, res) => {
     try {
-        ussdState.sessionActive = false;
-        ussdState.currentCode = null;
-        ussdState.currentResponse = null;
-        ussdState.menuLevel = 0;
-        ussdState.sessionId = null;
-        ussdState.menuState = null;
-        ussdState.menuStack = [];
-
+        // In production, this would end the actual USSD session
         res.json({
             success: true,
             message: 'USSD session ended'
@@ -386,7 +193,7 @@ router.post('/session/end', (req, res) => {
         logger.error('API USSD end session error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to end USSD session'
+            message: 'Failed to end USSD session: ' + error.message
         });
     }
 });
@@ -396,6 +203,10 @@ router.delete('/history/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const db = req.app.locals.db;
+        
+        if (!db) {
+            throw new Error('Database not available');
+        }
 
         const result = await db.run('DELETE FROM ussd WHERE id = ?', [id]);
 
@@ -414,7 +225,7 @@ router.delete('/history/:id', async (req, res) => {
         logger.error('API USSD delete error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to delete USSD history'
+            message: 'Failed to delete USSD history: ' + error.message
         });
     }
 });
@@ -423,6 +234,11 @@ router.delete('/history/:id', async (req, res) => {
 router.delete('/history', async (req, res) => {
     try {
         const db = req.app.locals.db;
+        
+        if (!db) {
+            throw new Error('Database not available');
+        }
+        
         await db.run('DELETE FROM ussd');
 
         res.json({
@@ -433,7 +249,7 @@ router.delete('/history', async (req, res) => {
         logger.error('API USSD clear error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to clear USSD history'
+            message: 'Failed to clear USSD history: ' + error.message
         });
     }
 });
@@ -444,6 +260,10 @@ router.delete('/history', async (req, res) => {
 router.get('/settings', async (req, res) => {
     try {
         const db = req.app.locals.db;
+        
+        if (!db) {
+            throw new Error('Database not available');
+        }
         
         const settings = await db.all(`
             SELECT * FROM ussd_settings 
@@ -458,7 +278,7 @@ router.get('/settings', async (req, res) => {
         logger.error('API USSD settings error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to fetch USSD settings'
+            message: 'Failed to fetch USSD settings: ' + error.message
         });
     }
 });
@@ -467,6 +287,10 @@ router.get('/settings', async (req, res) => {
 router.get('/settings/enabled', async (req, res) => {
     try {
         const db = req.app.locals.db;
+        
+        if (!db) {
+            throw new Error('Database not available');
+        }
         
         const settings = await db.all(`
             SELECT * FROM ussd_settings 
@@ -482,7 +306,7 @@ router.get('/settings/enabled', async (req, res) => {
         logger.error('API USSD enabled settings error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to fetch enabled USSD settings'
+            message: 'Failed to fetch enabled USSD settings: ' + error.message
         });
     }
 });
@@ -508,6 +332,10 @@ router.put('/settings/:key', [
         const { key } = req.params;
         const { service_name, ussd_code, description, icon, enabled, sort_order } = req.body;
         const db = req.app.locals.db;
+        
+        if (!db) {
+            throw new Error('Database not available');
+        }
 
         // Build update query
         let updates = [];
@@ -548,19 +376,30 @@ router.put('/settings/:key', [
         }
 
         params.push(key);
-        await db.run(`
+        const result = await db.run(`
             UPDATE ussd_settings 
             SET ${updates.join(', ')}
             WHERE service_key = ?
         `, params);
+
+        if (result.changes === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'USSD setting not found'
+            });
+        }
 
         logger.info(`USSD setting updated: ${key}`);
 
         const updated = await db.get('SELECT * FROM ussd_settings WHERE service_key = ?', [key]);
 
         // Emit socket event
-        if (req.io) {
-            req.io.emit('ussd:settings-updated', updated);
+        try {
+            if (req.io) {
+                req.io.emit('ussd:settings-updated', updated);
+            }
+        } catch (socketError) {
+            logger.error('Error emitting socket event:', socketError);
         }
 
         res.json({
@@ -572,7 +411,7 @@ router.put('/settings/:key', [
         logger.error('API USSD settings update error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to update USSD setting'
+            message: 'Failed to update USSD setting: ' + error.message
         });
     }
 });
@@ -600,6 +439,10 @@ router.post('/settings', [
 
         const { service_key, service_name, ussd_code, description, icon, enabled, sort_order } = req.body;
         const db = req.app.locals.db;
+        
+        if (!db) {
+            throw new Error('Database not available');
+        }
 
         // Check if key already exists
         const existing = await db.get('SELECT id FROM ussd_settings WHERE service_key = ?', [service_key]);
@@ -624,8 +467,12 @@ router.post('/settings', [
         const newSetting = await db.get('SELECT * FROM ussd_settings WHERE service_key = ?', [service_key]);
 
         // Emit socket event
-        if (req.io) {
-            req.io.emit('ussd:settings-created', newSetting);
+        try {
+            if (req.io) {
+                req.io.emit('ussd:settings-created', newSetting);
+            }
+        } catch (socketError) {
+            logger.error('Error emitting socket event:', socketError);
         }
 
         res.json({
@@ -637,7 +484,7 @@ router.post('/settings', [
         logger.error('API USSD settings create error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to create USSD setting'
+            message: 'Failed to create USSD setting: ' + error.message
         });
     }
 });
@@ -647,6 +494,10 @@ router.delete('/settings/:key', async (req, res) => {
     try {
         const { key } = req.params;
         const db = req.app.locals.db;
+        
+        if (!db) {
+            throw new Error('Database not available');
+        }
 
         const result = await db.run('DELETE FROM ussd_settings WHERE service_key = ?', [key]);
 
@@ -660,8 +511,12 @@ router.delete('/settings/:key', async (req, res) => {
         logger.info(`USSD setting deleted: ${key}`);
 
         // Emit socket event
-        if (req.io) {
-            req.io.emit('ussd:settings-deleted', { key });
+        try {
+            if (req.io) {
+                req.io.emit('ussd:settings-deleted', { key });
+            }
+        } catch (socketError) {
+            logger.error('Error emitting socket event:', socketError);
         }
 
         res.json({
@@ -672,7 +527,7 @@ router.delete('/settings/:key', async (req, res) => {
         logger.error('API USSD settings delete error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to delete USSD setting'
+            message: 'Failed to delete USSD setting: ' + error.message
         });
     }
 });
@@ -684,13 +539,18 @@ router.post('/settings/reorder', [
     try {
         const { order } = req.body;
         const db = req.app.locals.db;
+        
+        if (!db) {
+            throw new Error('Database not available');
+        }
 
         // Update sort order for each item
         for (let i = 0; i < order.length; i++) {
-            await db.run(
-                'UPDATE ussd_settings SET sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE service_key = ?',
-                [i, order[i]]
-            );
+            await db.run(`
+                UPDATE ussd_settings 
+                SET sort_order = ?, updated_at = CURRENT_TIMESTAMP 
+                WHERE service_key = ?
+            `, [i, order[i]]);
         }
 
         logger.info('USSD settings reordered');
@@ -699,8 +559,12 @@ router.post('/settings/reorder', [
         const settings = await db.all('SELECT * FROM ussd_settings ORDER BY sort_order ASC');
 
         // Emit socket event
-        if (req.io) {
-            req.io.emit('ussd:settings-reordered', settings);
+        try {
+            if (req.io) {
+                req.io.emit('ussd:settings-reordered', settings);
+            }
+        } catch (socketError) {
+            logger.error('Error emitting socket event:', socketError);
         }
 
         res.json({
@@ -712,7 +576,7 @@ router.post('/settings/reorder', [
         logger.error('API USSD reorder error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to reorder settings'
+            message: 'Failed to reorder settings: ' + error.message
         });
     }
 });
