@@ -9,25 +9,26 @@
     "init-db": "node utils/init-db.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "ejs": "^3.1.9",
+    "bcryptjs": "^3.0.3",
+    "bootstrap": "^5.3.8",
+    "bootstrap-icons": "^1.13.1",
+    "canvas": "^3.2.1",
+    "connect-flash": "^0.1.1",
+    "dotenv": "^17.3.1",
+    "ejs": "^4.0.1",
+    "express": "^5.2.1",
     "express-ejs-layouts": "^2.5.1",
-    "bootstrap": "^5.3.2",
-    "bootstrap-icons": "^1.11.3",
-    "socket.io": "^4.7.2",
-    "socket.io-client": "^4.7.2",
-    "sqlite3": "^5.1.6",
+    "express-session": "^1.19.0",
+    "express-validator": "^7.3.1",
+    "moment": "^2.30.1",
+    "multer": "^2.0.2",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
     "sqlite": "^5.1.1",
-    "express-session": "^1.17.3",
-    "bcryptjs": "^2.4.3",
-    "dotenv": "^16.3.1",
-    "winston": "^3.11.0",
-    "moment": "^2.29.4",
-    "multer": "^1.4.5-lts.1",
-    "express-validator": "^7.0.1",
-    "connect-flash": "^0.1.1"
+    "sqlite3": "^5.1.7",
+    "winston": "^3.19.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.1.11"
   }
 }
