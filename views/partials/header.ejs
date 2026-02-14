@@ -1,0 +1,45 @@
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
+    <div class="container-fluid px-3 px-md-4">
+        <a class="navbar-brand d-flex align-items-center" href="/">
+            <i class="bi bi-cpu fs-4 me-2"></i>
+            <span class="d-none d-sm-inline">ESP32-S3 Manager</span>
+            <span class="d-sm-none">ESP32</span>
+        </a>
+        
+        <div class="d-flex align-items-center gap-2">
+            <!-- Network Status -->
+            <span class="badge bg-success bg-opacity-25 text-white px-3 py-2 d-none d-md-inline">
+                <i class="bi bi-wifi me-1"></i> Online
+            </span>
+            
+            <!-- User Menu -->
+            <% if (user) { %>
+                <div class="dropdown">
+                    <button class="btn btn-link text-white text-decoration-none dropdown-toggle p-0 d-flex align-items-center" 
+                            type="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle fs-5 me-1"></i>
+                        <span class="d-none d-md-inline"><%= user.name || user.username %></span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center py-2" href="#">
+                                <i class="bi bi-person me-2"></i> Profile
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center py-2" href="#">
+                                <i class="bi bi-gear me-2"></i> Settings
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center py-2 text-danger" href="/auth/logout">
+                                <i class="bi bi-box-arrow-right me-2"></i> Logout
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            <% } %>
+        </div>
+    </div>
+</nav>
