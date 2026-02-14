@@ -3,29 +3,25 @@ const router = express.Router();
 const logger = require('../utils/logger');
 const modemService = require('../services/modemService');
 
+// Get device status
 router.get('/', (req, res) => {
     try {
-        let status = {};
+        const deviceId = req.query.deviceId || 'esp32-s3-1';
+        const status = modemService.getDeviceStatus(deviceId);
         
-        try {
-            status = modemService.getStatus();
-        } catch (modemError) {
-            logger.error('Error getting modem status:', modemError);
-            // Continue with default values
-        }
-        
+        // Format for frontend
         const deviceStatus = {
-            signal: status.mobile?.signalStrength || Math.floor(Math.random() * 31) + 70,
-            battery: 78, // Would come from actual ADC reading
-            network: status.mobile?.networkType || '4G LTE',
-            operator: status.mobile?.operator || 'Robi',
-            storage: Math.floor(Math.random() * 31) + 60, // From SD card
-            temperature: status.system?.temperature || Math.floor(Math.random() * 15) + 35,
-            uptime: status.system?.uptime || '0d 0h 0m',
-            lastUpdate: new Date().toISOString(),
+            online: status.online,
+            signal: status.mobile?.signalStrength || 0,
+            battery: status.system?.battery || 0,
+            charging: status.system?.charging || false,
+            network: status.mobile?.networkType || 'No Service',
+            operator: status.mobile?.operator || 'Unknown',
             ip: status.mobile?.ipAddress || '0.0.0.0',
-            imei: '123456789012345', // Would come from modem
-            iccid: '8932012345678901234' // Would come from SIM
+            temperature: status.system?.temperature || 0,
+            uptime: status.system?.uptime || '0s',
+            lastSeen: status.lastSeen,
+            firstSeen: status.firstSeen
         };
 
         res.json({
@@ -37,6 +33,41 @@ router.get('/', (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to fetch device status: ' + error.message
+        });
+    }
+});
+
+// Get all devices
+router.get('/devices', (req, res) => {
+    try {
+        const devices = modemService.getAllDevices();
+        res.json({
+            success: true,
+            data: devices
+        });
+    } catch (error) {
+        logger.error('API devices error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch devices: ' + error.message
+        });
+    }
+});
+
+// Get device history
+router.get('/history/:deviceId', (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        // In production, this would query a database
+        res.json({
+            success: true,
+            data: [] // Placeholder for history data
+        });
+    } catch (error) {
+        logger.error('API history error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch history: ' + error.message
         });
     }
 });

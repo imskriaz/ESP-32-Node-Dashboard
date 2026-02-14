@@ -9,5 +9,6 @@ router.use('/modem', require('./modem'));
 router.use('/ussd', require('./ussd'));
 router.use('/webcam', require('./webcam'));
 router.use('/settings', require('./settings'));
+router.use('/storage', require('./storage'));
 
 module.exports = router;

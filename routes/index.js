@@ -1,11 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const logger = require('../utils/logger');
+const fs = require('fs');
+const path = require('path');
 
 router.get('/', async (req, res) => {
     try {
         const db = req.app.locals.db;
         
+        if (!db) {
+            throw new Error('Database not available');
+        }
+
         // Get recent SMS
         const recentSms = await db.all(`
             SELECT * FROM sms 
@@ -23,7 +29,7 @@ router.get('/', async (req, res) => {
         const recentCalls = await db.all(`
             SELECT * FROM calls 
             ORDER BY start_time DESC 
-            LIMIT 3
+            LIMIT 5
         `);
 
         // Get contact count
@@ -32,77 +38,148 @@ router.get('/', async (req, res) => {
         // Get USSD history count
         const ussdCount = await db.get('SELECT COUNT(*) as count FROM ussd');
 
-        // Get real device status from modem service if available
-        let deviceStatus = {};
+        // Get real storage info
+        const INTERNAL_PATH = path.join(__dirname, '../storage');
+        const SD_CARD_PATH = process.env.SD_CARD_PATH || '/media/sd';
         
-        if (global.modemService) {
-            const status = global.modemService.getStatus();
-            deviceStatus = {
-                signal: status.mobile.signalStrength || Math.floor(Math.random() * 31) + 70,
-                battery: Math.floor(Math.random() * 41) + 60, // Placeholder - would come from actual ADC reading
-                network: status.mobile.networkType || '4G LTE',
-                operator: status.mobile.operator || 'Robi',
-                storage: Math.floor(Math.random() * 31) + 60, // Placeholder - would come from actual SD card
-                temperature: status.system?.temperature || Math.floor(Math.random() * 15) + 35,
-                uptime: status.system?.uptime || '0d 0h 0m',
-                ip: status.mobile.ipAddress || '0.0.0.0',
-                imei: '123456789012345', // Would come from actual modem
-                iccid: '8932012345678901234' // Would come from actual SIM
-            };
-        } else {
-            // Fallback mock data
-            deviceStatus = {
-                signal: Math.floor(Math.random() * 31) + 70,
-                battery: Math.floor(Math.random() * 41) + 60,
-                network: '4G LTE',
-                operator: 'Robi',
-                storage: Math.floor(Math.random() * 31) + 60,
-                temperature: Math.floor(Math.random() * 15) + 35,
-                uptime: '3d 4h 23m',
-                ip: '10.120.45.67',
-                imei: '123456789012345',
-                iccid: '8932012345678901234'
-            };
-        }
-
-        // Get data usage from modem service
-        let dataUsage = {
-            sent: 156,
-            received: 1245,
-            smsSent: 23,
-            callDuration: 45
+        let storageInfo = {
+            internal: { total: 0, used: 0, free: 0, available: false },
+            sd: { total: 0, used: 0, free: 0, available: false }
         };
 
-        if (global.modemService && global.modemService.modemState) {
-            const mobileData = global.modemService.modemState.mobile.dataUsage;
+        try {
+            // Check internal storage
+            if (fs.existsSync(INTERNAL_PATH)) {
+                const stats = fs.statfsSync(INTERNAL_PATH);
+                storageInfo.internal = {
+                    total: stats.blocks * stats.bsize,
+                    free: stats.bfree * stats.bsize,
+                    used: (stats.blocks - stats.bfree) * stats.bsize,
+                    available: true
+                };
+            }
+
+            // Check SD card
+            if (fs.existsSync(SD_CARD_PATH)) {
+                const sdStats = fs.statfsSync(SD_CARD_PATH);
+                storageInfo.sd = {
+                    total: sdStats.blocks * sdStats.bsize,
+                    free: sdStats.bfree * sdStats.bsize,
+                    used: (sdStats.blocks - sdStats.bfree) * sdStats.bsize,
+                    available: true
+                };
+            }
+        } catch (storageError) {
+            logger.error('Error getting storage info:', storageError);
+        }
+
+        // Get device status from modem service
+        let deviceStatus = {
+            signal: 0,
+            battery: 0,
+            network: 'No Device',
+            operator: 'Not Connected',
+            temperature: 0,
+            uptime: '0s',
+            ip: '0.0.0.0',
+            online: false
+        };
+        
+        if (global.modemService && typeof global.modemService.getStatus === 'function') {
+            try {
+                const status = global.modemService.getStatus();
+                deviceStatus = {
+                    signal: status.signal || 0,
+                    battery: status.battery || 0,
+                    network: status.online ? (status.network || 'No Service') : 'No Device',
+                    operator: status.online ? (status.operator || 'Unknown') : 'Not Connected',
+                    temperature: status.temperature || 0,
+                    uptime: status.online ? (status.uptime || '0s') : '0s',
+                    ip: status.online ? (status.ip || '0.0.0.0') : '0.0.0.0',
+                    online: status.online || false
+                };
+            } catch (statusError) {
+                logger.error('Error getting modem status:', statusError);
+            }
+        } else {
+            logger.warn('modemService.getStatus not available, using offline values');
+        }
+
+        // Get data usage stats
+        let dataUsage = {
+            sent: 0,
+            received: 0,
+            smsSent: 0,
+            callDuration: 0
+        };
+
+        try {
+            // Get SMS sent count
+            const smsSent = await db.get(`
+                SELECT COUNT(*) as count FROM sms WHERE type = 'outgoing'
+            `);
+            
+            // Get total call duration
+            const callDuration = await db.get(`
+                SELECT SUM(duration) as total FROM calls WHERE status = 'answered'
+            `);
+
             dataUsage = {
-                sent: Math.round(mobileData.sent / (1024 * 1024)) || 156, // Convert to MB
-                received: Math.round(mobileData.received / (1024 * 1024)) || 1245,
-                smsSent: await db.get('SELECT COUNT(*) as count FROM sms WHERE type = ?', ['outgoing']).then(r => r.count) || 23,
-                callDuration: await db.get('SELECT SUM(duration) as total FROM calls WHERE status = ?', ['answered']).then(r => r.total || 0)
+                sent: storageInfo.internal.used ? Math.round(storageInfo.internal.used / (1024 * 1024)) : 0,
+                received: storageInfo.internal.used ? Math.round(storageInfo.internal.used / (1024 * 1024)) : 0,
+                smsSent: smsSent?.count || 0,
+                callDuration: Math.floor((callDuration?.total || 0) / 60) // Convert to minutes
             };
+        } catch (dbError) {
+            logger.error('Error getting data usage:', dbError);
         }
 
         res.render('pages/index', {
             title: 'Dashboard',
-            recentSms,
-            recentCalls,
-            unreadCount: unreadCount.count,
-            contactCount: contactCount.count,
-            ussdCount: ussdCount.count,
+            recentSms: recentSms || [],
+            recentCalls: recentCalls || [],
+            unreadCount: unreadCount?.count || 0,
+            contactCount: contactCount?.count || 0,
+            ussdCount: ussdCount?.count || 0,
             deviceStatus,
+            storageInfo,
             dataUsage,
-            user: req.session.user
+            user: req.session.user,
+            moment: require('moment')
         });
     } catch (error) {
         logger.error('Dashboard page error:', error);
-        req.flash('error', 'Failed to load dashboard data');
+        
+        // Still render the page with empty data rather than crashing
         res.render('pages/index', {
             title: 'Dashboard',
             recentSms: [],
+            recentCalls: [],
             unreadCount: 0,
-            deviceStatus: {},
-            user: req.session.user
+            contactCount: 0,
+            ussdCount: 0,
+            deviceStatus: {
+                signal: 0,
+                battery: 0,
+                network: 'No Device',
+                operator: 'Not Connected',
+                temperature: 0,
+                uptime: '0s',
+                ip: '0.0.0.0',
+                online: false
+            },
+            storageInfo: {
+                internal: { total: 0, used: 0, free: 0, available: false },
+                sd: { total: 0, used: 0, free: 0, available: false }
+            },
+            dataUsage: {
+                sent: 0,
+                received: 0,
+                smsSent: 0,
+                callDuration: 0
+            },
+            user: req.session.user,
+            moment: require('moment')
         });
     }
 });
@@ -132,12 +209,12 @@ router.get('/sms', async (req, res) => {
 
         res.render('pages/sms', {
             title: 'SMS Management',
-            messages,
-            unreadCount: unreadCount.count,
+            messages: messages || [],
+            unreadCount: unreadCount?.count || 0,
             pagination: {
                 page,
-                totalPages: Math.ceil(totalCount.count / limit),
-                totalItems: totalCount.count
+                totalPages: Math.ceil((totalCount?.count || 0) / limit),
+                totalItems: totalCount?.count || 0
             },
             user: req.session.user
         });
@@ -170,9 +247,9 @@ router.get('/calls', async (req, res) => {
         res.render('pages/calls', {
             title: 'Call Management',
             stats: {
-                total: totalCalls.count,
-                answered: answeredCalls.count,
-                missed: missedCalls.count
+                total: totalCalls?.count || 0,
+                answered: answeredCalls?.count || 0,
+                missed: missedCalls?.count || 0
             },
             user: req.session.user
         });
@@ -222,7 +299,7 @@ router.get('/ussd', async (req, res) => {
 
         res.render('pages/ussd', {
             title: 'USSD Services',
-            recentUssd,
+            recentUssd: recentUssd || [],
             user: req.session.user
         });
     } catch (error) {
@@ -251,6 +328,32 @@ router.get('/webcam', async (req, res) => {
     }
 });
 
+router.get('/storage', async (req, res) => {
+    try {
+        res.render('pages/storage', {
+            title: 'Storage Manager',
+            user: req.session.user
+        });
+    } catch (error) {
+        logger.error('Storage page error:', error);
+        req.flash('error', 'Failed to load storage page');
+        res.redirect('/');
+    }
+});
+
+router.get('/settings', async (req, res) => {
+    try {
+        res.render('pages/settings', {
+            title: 'Settings',
+            user: req.session.user
+        });
+    } catch (error) {
+        logger.error('Settings page error:', error);
+        req.flash('error', 'Failed to load settings page');
+        res.redirect('/');
+    }
+});
+
 // Real balance check via USSD
 router.post('/api/quick/balance', async (req, res) => {
     try {
@@ -264,14 +367,20 @@ router.post('/api/quick/balance', async (req, res) => {
 
         // Send via MQTT if connected
         if (global.mqttService && global.mqttService.connected) {
-            global.mqttService.sendUssd('esp32-s3-1', '*566#');
+            global.mqttService.sendUssd('esp32-s3-1', '*566#').catch(err => {
+                logger.error('MQTT send USSD error:', err);
+            });
             
             // In production, we would update the status when response comes via MQTT
             setTimeout(async () => {
-                await db.run(
-                    'UPDATE ussd SET status = ?, response = ? WHERE id = ?',
-                    ['success', 'Your current balance is BDT 125.50. Valid until 2026-03-15', result.lastID]
-                );
+                try {
+                    await db.run(
+                        'UPDATE ussd SET status = ?, response = ? WHERE id = ?',
+                        ['success', 'Your current balance is BDT 125.50. Valid until 2026-03-15', result.lastID]
+                    );
+                } catch (updateError) {
+                    logger.error('Error updating USSD response:', updateError);
+                }
             }, 5000);
         }
 
@@ -290,14 +399,18 @@ router.post('/api/quick/balance', async (req, res) => {
 router.post('/api/quick/restart-modem', async (req, res) => {
     try {
         if (global.mqttService && global.mqttService.connected) {
-            global.mqttService.publishCommand('esp32-s3-1', 'restart-modem');
+            global.mqttService.restartDevice('esp32-s3-1').catch(err => {
+                logger.error('MQTT restart error:', err);
+            });
             
             // Log the action
             const db = req.app.locals.db;
-            await db.run(`
-                INSERT INTO ussd (code, description, status, timestamp) 
-                VALUES ('RESTART', 'Modem Restart', 'sent', CURRENT_TIMESTAMP)
-            `);
+            if (db) {
+                await db.run(`
+                    INSERT INTO ussd (code, description, status, timestamp) 
+                    VALUES ('RESTART', 'Modem Restart', 'sent', CURRENT_TIMESTAMP)
+                `);
+            }
             
             res.json({
                 success: true,
@@ -314,18 +427,30 @@ router.post('/api/quick/restart-modem', async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to restart modem' });
     }
 });
-
-router.get('/settings', async (req, res) => {
+router.get('/gps', async (req, res) => {
     try {
-        res.render('pages/settings', {
-            title: 'Settings',
+        res.render('pages/gps', {
+            title: 'GPS',
             user: req.session.user
         });
     } catch (error) {
-        logger.error('Settings page error:', error);
-        req.flash('error', 'Failed to load settings page');
+        logger.error('GPS page error:', error);
+        req.flash('error', 'Failed to load GPS page');
         res.redirect('/');
     }
 });
 
+// GPIO page
+router.get('/gpio', async (req, res) => {
+    try {
+        res.render('pages/gpio', {
+            title: 'GPIO',
+            user: req.session.user
+        });
+    } catch (error) {
+        logger.error('GPIO page error:', error);
+        req.flash('error', 'Failed to load GPIO page');
+        res.redirect('/');
+    }
+});
 module.exports = router;

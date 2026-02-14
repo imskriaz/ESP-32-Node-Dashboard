@@ -269,4 +269,109 @@ router.post('/capture/:deviceId', async (req, res) => {
     }
 });
 
+router.get('/status', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            connected: mqttService.connected,
+            broker: process.env.MQTT_HOST || 'device.atebd.com'
+        });
+    } catch (error) {
+        logger.error('MQTT status error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get MQTT status'
+        });
+    }
+});
+
+router.post('/test', [
+    body('host').notEmpty().withMessage('Host is required'),
+    body('port').isInt({ min: 1, max: 65535 }).withMessage('Valid port required'),
+    body('username').optional(),
+    body('password').optional()
+], (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                errors: errors.array()
+            });
+        }
+
+        const { host, port, username, password } = req.body;
+        
+        logger.info('Testing MQTT connection to:', { host, port, username });
+        
+        // Create temporary client for testing
+        const mqtt = require('mqtt');
+        const connectOptions = {
+            host: host,
+            port: parseInt(port),
+            protocol: 'mqtt',
+            connectTimeout: 10000,
+            reconnectPeriod: -1, // Don't auto reconnect
+            clientId: `test_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`,
+            clean: true,
+            rejectUnauthorized: false
+        };
+
+        // Only add auth if username is provided
+        if (username) {
+            connectOptions.username = username;
+            if (password) {
+                connectOptions.password = password;
+            }
+        }
+
+        const testClient = mqtt.connect(`mqtt://${host}:${port}`, connectOptions);
+
+        const timeout = setTimeout(() => {
+            testClient.end(true);
+            res.json({
+                success: false,
+                message: 'Connection timeout - broker not responding'
+            });
+        }, 10000);
+
+        testClient.on('connect', () => {
+            clearTimeout(timeout);
+            logger.info('MQTT test connection successful');
+            testClient.end(true);
+            res.json({
+                success: true,
+                message: 'MQTT connection successful'
+            });
+        });
+
+        testClient.on('error', (error) => {
+            clearTimeout(timeout);
+            testClient.end(true);
+            logger.error('MQTT test connection error:', error.message);
+            
+            let errorMessage = error.message;
+            if (error.message.includes('not authorized')) {
+                errorMessage = 'Authentication failed - check username and password';
+            } else if (error.message.includes('ECONNREFUSED')) {
+                errorMessage = 'Connection refused - broker may be down or port blocked';
+            } else if (error.message.includes('ETIMEDOUT')) {
+                errorMessage = 'Connection timeout - check network connectivity';
+            }
+            
+            res.json({
+                success: false,
+                message: errorMessage
+            });
+        });
+
+    } catch (error) {
+        logger.error('MQTT test error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Test failed: ' + error.message
+        });
+    }
+});
+
 module.exports = router;

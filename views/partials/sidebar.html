@@ -75,21 +75,23 @@
             </a>
         </li>
         <li class="nav-item">
-            <a href="#" class="nav-link disabled opacity-50">
+            <a href="/storage" class="nav-link <%= title === 'Storage Manager' ? 'active' : '' %>">
                 <i class="bi bi-hdd-stack"></i>
-                <span>File Browser</span>
+                <span>Storage</span>
             </a>
         </li>
         <li class="nav-item">
-            <a href="#" class="nav-link disabled opacity-50">
+            <a href="/gps" class="nav-link <%= title === 'GPS' ? 'active' : '' %>">
                 <i class="bi bi-geo-alt"></i>
                 <span>GPS</span>
+                <span class="badge bg-info ms-2" id="gpsBadge" style="display: none;">3D</span>
             </a>
         </li>
         <li class="nav-item">
-            <a href="#" class="nav-link disabled opacity-50">
+            <a href="/gpio" class="nav-link <%= title === 'GPIO' ? 'active' : '' %>">
                 <i class="bi bi-motherboard"></i>
                 <span>GPIO</span>
+                <span class="badge bg-success ms-2" id="gpioBadge" style="display: none;">8</span>
             </a>
         </li>
 
@@ -105,128 +107,294 @@
         </li>
     </ul>
 
-    <!-- Enhanced Compact Device Status -->
-    <div class="mt-auto pt-2 border-top">
-        <!-- Main Status Bar -->
-        <div class="d-flex align-items-center justify-content-between mb-2">
-            <div class="d-flex align-items-center">
-                <span class="status-indicator me-2">
-                    <span class="spinner-grow spinner-grow-sm text-success" id="sidebarOnlineIndicator" style="width: 0.6rem; height: 0.6rem; display: none;"></span>
-                    <span class="spinner-grow spinner-grow-sm text-secondary" id="sidebarOfflineIndicator" style="width: 0.6rem; height: 0.6rem;"></span>
-                </span>
-                <small class="fw-medium" id="sidebarStatusText">Offline</small>
+    <!-- Enhanced Connection Status Panel -->
+    <div class="connection-panel mt-auto pt-3">
+        <!-- Server Connection Status -->
+        <div class="connection-status mb-3">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="small text-uppercase fw-bold text-muted">Status</span>
+                <span class="badge" id="serverStatusBadge">Connecting...</span>
             </div>
-            <small class="text-muted" id="sidebarUptime">0d 0h</small>
+            
+            <!-- Server Connection -->
+            <div class="status-item d-flex align-items-center mb-2" id="serverConnection">
+                <div class="status-indicator me-2">
+                    <span class="spinner-grow spinner-grow-sm text-warning" id="serverConnecting" style="width: 0.6rem; height: 0.6rem;"></span>
+                    <span class="spinner-grow spinner-grow-sm text-success" id="serverConnected" style="width: 0.6rem; height: 0.6rem; display: none;"></span>
+                    <span class="spinner-grow spinner-grow-sm text-danger" id="serverDisconnected" style="width: 0.6rem; height: 0.6rem; display: none;"></span>
+                </div>
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">Server</small>
+                        <small class="fw-medium" id="serverStatusText">Connecting...</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- MQTT Connection -->
+            <div class="status-item d-flex align-items-center mb-2" id="mqttConnection">
+                <div class="status-indicator me-2">
+                    <span class="spinner-grow spinner-grow-sm text-warning" id="mqttConnecting" style="width: 0.6rem; height: 0.6rem;"></span>
+                    <span class="spinner-grow spinner-grow-sm text-success" id="mqttConnected" style="width: 0.6rem; height: 0.6rem; display: none;"></span>
+                    <span class="spinner-grow spinner-grow-sm text-danger" id="mqttDisconnected" style="width: 0.6rem; height: 0.6rem; display: none;"></span>
+                </div>
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">MQTT</small>
+                        <small class="fw-medium" id="mqttStatusText">Connecting...</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Device Connection -->
+            <div class="status-item d-flex align-items-center" id="deviceConnection">
+                <div class="status-indicator me-2">
+                    <span class="spinner-grow spinner-grow-sm text-secondary" id="deviceOffline" style="width: 0.6rem; height: 0.6rem;"></span>
+                    <span class="spinner-grow spinner-grow-sm text-success" id="deviceOnline" style="width: 0.6rem; height: 0.6rem; display: none;"></span>
+                </div>
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">Device</small>
+                        <small class="fw-medium" id="deviceStatusText">Offline</small>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- Compact Metrics Row -->
-        <div class="row g-1 mb-1">
-            <div class="col-6">
+        <!-- Device Metrics Panel -->
+        <div class="metrics-panel bg-light rounded p-2 mb-3" id="metricsPanel" style="display: none;">
+            <div class="small fw-bold text-muted mb-2">
+                <i class="bi bi-cpu me-1"></i>Device Metrics
+            </div>
+            
+            <!-- Uptime -->
+            <div class="d-flex align-items-center justify-content-between mb-2">
                 <div class="d-flex align-items-center">
-                    <i class="bi bi-wifi me-1 small"></i>
-                    <small class="text-muted me-1">Signal:</small>
+                    <i class="bi bi-clock-history text-primary me-2" style="font-size: 0.8rem;"></i>
+                    <small class="text-muted">Uptime</small>
+                </div>
+                <small class="fw-bold" id="sidebarUptime">0d 0h 0m</small>
+            </div>
+            
+            <!-- Signal Strength with visual bar -->
+            <div class="mb-2">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-wifi text-primary me-2" style="font-size: 0.8rem;"></i>
+                        <small class="text-muted">Signal</small>
+                    </div>
                     <small class="fw-bold" id="sidebarSignal">--%</small>
                 </div>
-            </div>
-            <div class="col-6">
-                <div class="d-flex align-items-center">
-                    <i class="bi bi-battery-full me-1 small"></i>
-                    <small class="text-muted me-1">Battery:</small>
-                    <small class="fw-bold" id="sidebarBattery">--%</small>
-                    <small class="text-success ms-1" id="sidebarCharging" style="display: none;">
-                        <i class="bi bi-lightning-charge-fill" style="font-size: 0.7rem;"></i>
-                    </small>
+                <div class="progress" style="height: 4px;">
+                    <div class="progress-bar" id="sidebarSignalBar" role="progressbar" style="width: 0%"></div>
                 </div>
             </div>
-        </div>
-
-        <!-- Network Info -->
-        <div class="d-flex align-items-center justify-content-between small">
-            <div class="d-flex align-items-center">
-                <i class="bi bi-broadcast me-1"></i>
-                <small class="text-muted me-1">Network:</small>
-                <small class="fw-bold" id="sidebarNetwork">---</small>
+            
+            <!-- Battery with icon and charging indicator -->
+            <div class="mb-2">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-battery text-primary me-2" style="font-size: 0.8rem;"></i>
+                        <small class="text-muted">Battery</small>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <small class="fw-bold me-2" id="sidebarBattery">--%</small>
+                        <span class="badge bg-success charging-badge" id="sidebarCharging" style="display: none; font-size: 0.6rem;">
+                            <i class="bi bi-lightning-charge-fill"></i>
+                        </span>
+                    </div>
+                </div>
+                <div class="progress mt-1" style="height: 4px;">
+                    <div class="progress-bar bg-success" id="sidebarBatteryBar" role="progressbar" style="width: 0%"></div>
+                </div>
             </div>
-            <small class="text-muted" id="sidebarOperator">---</small>
+            
+            <!-- Network Info -->
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-broadcast text-primary me-2" style="font-size: 0.8rem;"></i>
+                    <div>
+                        <small class="text-muted d-block">Network</small>
+                        <small class="fw-bold" id="sidebarNetwork">---</small>
+                    </div>
+                </div>
+                <small class="text-muted" id="sidebarOperator">---</small>
+            </div>
+            
+            <!-- Storage Info -->
+            <div class="d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-hdd-stack text-primary me-2" style="font-size: 0.8rem;"></i>
+                    <div>
+                        <small class="text-muted d-block">Storage</small>
+                        <small class="fw-bold" id="sidebarStorageUsed">0%</small>
+                    </div>
+                </div>
+                <small class="text-muted" id="sidebarStorageFree">0 GB free</small>
+            </div>
         </div>
-
-        <!-- Tiny Progress Bar for Signal (optional) -->
-        <div class="progress mt-2" style="height: 2px;">
-            <div class="progress-bar" id="sidebarSignalBar" role="progressbar" style="width: 0%"></div>
+        
+        <!-- GPS Quick Info (when available) -->
+        <div class="gps-info bg-light rounded p-2 mb-3" id="gpsInfo" style="display: none;">
+            <div class="d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-geo-alt-fill text-danger me-2"></i>
+                    <small class="text-muted">GPS</small>
+                </div>
+                <small class="fw-bold" id="gpsFix">No Fix</small>
+            </div>
+            <div class="d-flex justify-content-between mt-1 small">
+                <span id="gpsLat">--°</span>
+                <span id="gpsLng">--°</span>
+                <span id="gpsSat">0 sat</span>
+            </div>
         </div>
+        
+        <!-- Loading Skeleton (shown while connecting) -->
+        <div class="loading-skeleton" id="loadingSkeleton">
+            <div class="skeleton-item mb-2">
+                <div class="skeleton-line" style="width: 60%;"></div>
+            </div>
+            <div class="skeleton-item mb-2">
+                <div class="skeleton-line" style="width: 40%;"></div>
+            </div>
+            <div class="skeleton-item">
+                <div class="skeleton-line" style="width: 50%;"></div>
+            </div>
+        </div>
+        
+        <!-- Refresh button -->
+        <button class="btn btn-sm btn-outline-secondary w-100 mt-2" onclick="refreshConnectionStatus()">
+            <i class="bi bi-arrow-repeat me-1"></i>Refresh Status
+        </button>
     </div>
 </div>
 
 <style>
-    /* Sidebar styles */
-    .sidebar-content {
-        height: 100%;
+    /* Connection Panel Styles */
+    .connection-panel {
+        background: white;
+        border-radius: 10px;
+        padding: 1rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    
+    .status-item {
+        padding: 0.25rem 0;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    
+    .status-item:last-child {
+        border-bottom: none;
+    }
+    
+    .status-indicator {
+        width: 1.2rem;
         display: flex;
-        flex-direction: column;
+        align-items: center;
+        justify-content: center;
     }
-
-    .nav-pills .nav-link {
-        border-radius: 0.5rem;
-        padding: 0.75rem 1rem;
-        margin-bottom: 0.25rem;
-        color: #495057;
-        min-height: 48px;
+    
+    .status-indicator .spinner-grow {
+        animation-duration: 1.5s;
     }
-
-    .nav-pills .nav-link i {
-        width: 1.8rem;
-        font-size: 1.2rem;
+    
+    /* Metrics Panel */
+    .metrics-panel {
+        border-left: 3px solid #0d6efd;
+        transition: all 0.3s ease;
     }
-
-    .nav-pills .nav-link.active {
-        background-color: #e9ecef;
-        color: #0d6efd;
-        font-weight: 500;
+    
+    /* GPS Info */
+    .gps-info {
+        border-left: 3px solid #dc3545;
     }
-
-    .nav-pills .nav-link.disabled {
-        color: #adb5bd;
-        pointer-events: none;
+    
+    /* Loading Skeleton Animation */
+    .loading-skeleton {
+        animation: pulse 1.5s ease-in-out infinite;
     }
-
-    /* Status indicator animation */
+    
+    .skeleton-line {
+        height: 1rem;
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: loading 1.5s infinite;
+        border-radius: 4px;
+        margin: 0.5rem 0;
+    }
+    
+    @keyframes loading {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+    
     @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.7; }
+        100% { opacity: 1; }
+    }
+    
+    /* Battery Icon Animation */
+    .bi-battery {
+        position: relative;
+    }
+    
+    .charging-badge {
+        animation: blink 1s infinite;
+    }
+    
+    @keyframes blink {
         0% { opacity: 1; }
         50% { opacity: 0.5; }
         100% { opacity: 1; }
     }
-
-    .status-indicator .spinner-grow {
-        animation: pulse 2s infinite;
-    }
-
-    /* Compact status bar */
-    .status-indicator .spinner-grow {
-        width: 0.6rem;
-        height: 0.6rem;
-    }
-
-    .small {
-        font-size: 0.75rem;
-    }
-
-    .row.g-1 {
-        margin: -0.25rem;
+    
+    /* Progress Bars */
+    .progress {
+        background-color: #e9ecef;
+        overflow: hidden;
     }
     
-    .row.g-1 > [class*="col-"] {
-        padding: 0.25rem;
+    .progress-bar {
+        transition: width 0.3s ease;
     }
-
+    
+    /* Custom Scrollbar */
+    .connection-panel::-webkit-scrollbar {
+        width: 4px;
+    }
+    
+    .connection-panel::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+    
+    .connection-panel::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 2px;
+    }
+    
+    .connection-panel::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+    
     /* Mobile adjustments */
     @media (max-width: 767.98px) {
-        .nav-pills .nav-link {
-            padding: 1rem;
+        .connection-panel {
+            padding: 0.75rem;
         }
-
+        
+        .status-item {
+            font-size: 0.875rem;
+        }
+        
+        .nav-pills .nav-link {
+            padding: 0.75rem;
+        }
+        
         .nav-pills .nav-link i {
-            width: 2rem;
-            font-size: 1.3rem;
+            width: 1.5rem;
+            font-size: 1.1rem;
         }
     }
 </style>

@@ -2,162 +2,279 @@ const logger = require('../utils/logger');
 
 class ModemService {
     constructor() {
-        this.modemState = {
-            mobile: {
-                enabled: false,
-                connected: false,
-                operator: '',
-                networkType: '',
-                signalStrength: 0,
-                ipAddress: '',
-                dataUsage: { sent: 0, received: 0, total: 0 },
-                apn: { name: 'internet', username: '', password: '', auth: 'none' }
-            },
-            wifiClient: {
-                enabled: false,
-                connected: false,
-                ssid: '',
-                signalStrength: 0,
-                ipAddress: ''
-            },
-            wifiHotspot: {
-                enabled: false,
-                ssid: 'ESP32-S3-Hotspot',
-                password: '12345678',
-                security: 'WPA2-PSK',
-                connectedClients: 0
-            },
-            usb: {
-                enabled: false,
-                connected: false
-            },
-            routing: {
-                primarySource: 'none',
-                connectedDevices: 0
+        this.devices = new Map(); // Track multiple devices
+        this.wifiNetworks = [];
+        this.hotspotClients = [];
+        
+        // DO NOT create any default devices - wait for actual heartbeats
+        // This ensures device only shows online when actually connected
+    }
+
+    // Get status for a specific device
+    getStatus(deviceId = 'esp32-s3-1') {
+        const device = this.devices.get(deviceId);
+        
+        if (!device) {
+            // No device found - return offline status with all zeros
+            return {
+                online: false,
+                signal: 0,
+                battery: 0,
+                charging: false,
+                network: 'No Device',
+                operator: 'Not Connected',
+                ip: '0.0.0.0',
+                temperature: 0,
+                uptime: '0s',
+                lastSeen: null,
+                firstSeen: null
+            };
+        }
+
+        // Check if device is still online (last seen within 2 minutes)
+        const now = new Date();
+        const lastSeen = new Date(device.lastSeen);
+        const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
+        device.online = lastSeen > twoMinutesAgo;
+
+        return {
+            online: device.online,
+            signal: device.mobile?.signalStrength || 0,
+            battery: device.system?.battery || 0,
+            charging: device.system?.charging || false,
+            network: device.mobile?.networkType || 'No Service',
+            operator: device.mobile?.operator || 'Unknown',
+            ip: device.mobile?.ipAddress || '0.0.0.0',
+            temperature: device.system?.temperature || 0,
+            uptime: device.system?.uptime || '0s',
+            lastSeen: device.lastSeen,
+            firstSeen: device.firstSeen
+        };
+    }
+
+    // Get device status for a specific device (alias for getStatus)
+    getDeviceStatus(deviceId = 'esp32-s3-1') {
+        return this.getStatus(deviceId);
+    }
+
+    // Update device status from MQTT
+    updateDeviceStatus(deviceId, data) {
+        try {
+            const device = this.devices.get(deviceId) || {
+                id: deviceId,
+                firstSeen: new Date().toISOString(),
+                lastSeen: new Date().toISOString(),
+                online: true,
+                mobile: {
+                    signalStrength: 0,
+                    networkType: 'Unknown',
+                    operator: 'Unknown',
+                    ipAddress: '0.0.0.0',
+                    connected: false
+                },
+                system: {
+                    battery: 0,
+                    charging: false,
+                    uptime: '0s',
+                    temperature: 0
+                },
+                status: {}
+            };
+
+            // Update last seen
+            device.lastSeen = new Date().toISOString();
+            device.online = true;
+            
+            // Update status data
+            device.status = {
+                ...device.status,
+                ...data,
+                lastUpdate: new Date().toISOString()
+            };
+
+            // Extract mobile data if present
+            if (data.mobile) {
+                device.mobile = {
+                    ...device.mobile,
+                    ...data.mobile
+                };
             }
-        };
+
+            // Extract WiFi data if present
+            if (data.wifi) {
+                device.wifi = {
+                    ...device.wifi,
+                    ...data.wifi
+                };
+            }
+
+            // Extract system data if present
+            if (data.system) {
+                device.system = {
+                    ...device.system,
+                    ...data.system
+                };
+            }
+
+            this.devices.set(deviceId, device);
+            
+            logger.info(`📱 Device ${deviceId} status updated`, {
+                signal: device.mobile?.signalStrength,
+                network: device.mobile?.networkType,
+                online: device.online
+            });
+
+            return device;
+        } catch (error) {
+            logger.error('Error updating device status:', error);
+            return null;
+        }
     }
 
-    // Update from MQTT status messages
-    updateFromMqtt(data) {
-        if (data.mobile) {
-            this.modemState.mobile = {
-                ...this.modemState.mobile,
-                ...data.mobile
-            };
-        }
+    // Handle device heartbeat (simple ping)
+    handleHeartbeat(deviceId) {
+        const device = this.devices.get(deviceId);
         
-        if (data.wifi) {
-            this.modemState.wifiClient = {
-                ...this.modemState.wifiClient,
-                ...data.wifi
-            };
-        }
-        
-        if (data.hotspot) {
-            this.modemState.wifiHotspot = {
-                ...this.modemState.wifiHotspot,
-                ...data.hotspot
-            };
-        }
-        
-        if (data.routing) {
-            this.modemState.routing = {
-                ...this.modemState.routing,
-                ...data.routing
-            };
+        if (!device) {
+            // New device detected via heartbeat
+            logger.info(`🆕 New device detected: ${deviceId}`);
+            this.devices.set(deviceId, {
+                id: deviceId,
+                firstSeen: new Date().toISOString(),
+                lastSeen: new Date().toISOString(),
+                online: true,
+                mobile: {
+                    signalStrength: 0,
+                    networkType: 'Unknown',
+                    operator: 'Unknown',
+                    ipAddress: '0.0.0.0',
+                    connected: false
+                },
+                system: {
+                    battery: 0,
+                    charging: false,
+                    uptime: '0s',
+                    temperature: 0
+                },
+                status: {}
+            });
+        } else {
+            // Update last seen for existing device
+            device.lastSeen = new Date().toISOString();
+            device.online = true;
+            this.devices.set(deviceId, device);
         }
 
-        logger.debug('Modem state updated from MQTT');
+        logger.debug(`💓 Heartbeat from device ${deviceId}`);
     }
 
-    getStatus() {
-        const internetAvailable = this.modemState.mobile.connected || 
-                                 this.modemState.wifiClient.connected || 
-                                 this.modemState.usb.connected;
-        
-        const activeSource = this.modemState.mobile.connected ? 'mobile' :
-                           this.modemState.wifiClient.connected ? 'wifi' :
-                           this.modemState.usb.connected ? 'usb' : 'none';
+    // Check which devices are online (heartbeat within last 2 minutes)
+    checkOnlineDevices() {
+        const now = new Date();
+        const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
+        const onlineDevices = [];
 
-        return {
-            internet: {
-                available: internetAvailable,
-                activeSource,
-                sources: {
-                    mobile: this.modemState.mobile.connected,
-                    wifi: this.modemState.wifiClient.connected,
-                    usb: this.modemState.usb.connected
+        for (const [deviceId, device] of this.devices) {
+            const lastSeen = new Date(device.lastSeen);
+            const wasOnline = device.online;
+            
+            device.online = lastSeen > twoMinutesAgo;
+            
+            if (wasOnline && !device.online) {
+                logger.warn(`⚠️ Device ${deviceId} went offline (last seen: ${device.lastSeen})`);
+                // Emit offline event
+                if (global.io) {
+                    global.io.emit('device:offline', { deviceId });
                 }
-            },
-            sharing: {
-                hotspot: this.modemState.wifiHotspot.enabled,
-                usb: this.modemState.usb.enabled && this.modemState.usb.connected,
-                connectedDevices: this.modemState.routing.connectedDevices
-            },
-            mobile: this.modemState.mobile,
-            wifiClient: this.modemState.wifiClient,
-            wifiHotspot: this.modemState.wifiHotspot,
-            usb: this.modemState.usb,
-            routing: this.modemState.routing
-        };
+            } else if (!wasOnline && device.online) {
+                logger.info(`✅ Device ${deviceId} came online`);
+                // Emit online event
+                if (global.io) {
+                    global.io.emit('device:online', { deviceId });
+                }
+            }
+            
+            if (device.online) {
+                onlineDevices.push(deviceId);
+            }
+        }
+
+        return onlineDevices;
     }
 
-    // Commands to send via MQTT
-    toggleMobile(enabled) {
-        return {
-            command: 'set-mobile',
-            payload: { enabled }
-        };
+    // Get all devices
+    getAllDevices() {
+        this.checkOnlineDevices(); // Update online status
+        return Array.from(this.devices.values()).map(d => ({
+            id: d.id,
+            online: d.online,
+            lastSeen: d.lastSeen,
+            signal: d.mobile?.signalStrength || 0,
+            network: d.mobile?.networkType || 'Unknown',
+            operator: d.mobile?.operator || 'Unknown'
+        }));
     }
 
-    setAPN(apn, username, password, auth) {
-        return {
-            command: 'set-apn',
-            payload: { apn, username, password, auth }
-        };
+    // Update WiFi scan results
+    updateWifiNetworks(deviceId, networks) {
+        try {
+            this.wifiNetworks = networks;
+            const device = this.devices.get(deviceId);
+            if (device) {
+                device.wifiNetworks = networks;
+                this.devices.set(deviceId, device);
+            }
+            global.io?.emit('modem:wifi-scan', { deviceId, networks });
+        } catch (error) {
+            logger.error('Error updating WiFi networks:', error);
+        }
     }
 
-    scanWifi() {
-        return {
-            command: 'scan-wifi',
-            payload: {}
-        };
+    // Update hotspot clients
+    updateHotspotClients(deviceId, clients) {
+        try {
+            this.hotspotClients = clients;
+            const device = this.devices.get(deviceId);
+            if (device) {
+                device.hotspotClients = clients;
+                device.wifiHotspot = device.wifiHotspot || {};
+                device.wifiHotspot.connectedClients = clients.length;
+                this.devices.set(deviceId, device);
+            }
+            global.io?.emit('modem:hotspot-clients', { deviceId, clients });
+        } catch (error) {
+            logger.error('Error updating hotspot clients:', error);
+        }
     }
 
-    connectToWifi(ssid, password, security) {
-        return {
-            command: 'connect-wifi',
-            payload: { ssid, password, security }
-        };
+    // Remove offline devices (cleanup after 5 minutes offline)
+    cleanupOfflineDevices() {
+        const now = new Date();
+        const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+
+        for (const [deviceId, device] of this.devices) {
+            const lastSeen = new Date(device.lastSeen);
+            if (lastSeen < fiveMinutesAgo && !device.online) {
+                logger.info(`🧹 Removing stale device: ${deviceId} (last seen: ${device.lastSeen})`);
+                this.devices.delete(deviceId);
+            }
+        }
     }
 
-    toggleHotspot(enabled) {
-        return {
-            command: 'set-hotspot',
-            payload: { enabled }
-        };
+    // Check if any device exists
+    hasDevices() {
+        return this.devices.size > 0;
     }
 
-    configureHotspot(config) {
-        return {
-            command: 'configure-hotspot',
-            payload: config
-        };
+    // Get device count
+    getDeviceCount() {
+        return this.devices.size;
     }
-
-    toggleUSB(enabled) {
-        return {
-            command: 'set-usb',
-            payload: { enabled }
-        };
-    }
-
-    setRouting(config) {
-        return {
-            command: 'set-routing',
-            payload: config
-        };
+    
+    // Reset all devices (useful for testing)
+    resetDevices() {
+        this.devices.clear();
+        logger.info('🔄 All devices cleared');
     }
 }
 

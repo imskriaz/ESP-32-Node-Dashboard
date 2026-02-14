@@ -736,6 +736,30 @@ router.get('/data-usage', (req, res) => {
     }
 });
 
+// Add this to your modem routes for debugging
+router.post('/reset-devices', (req, res) => {
+    try {
+        if (global.modemService) {
+            global.modemService.resetDevices();
+            res.json({
+                success: true,
+                message: 'All devices cleared'
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                message: 'Modem service not available'
+            });
+        }
+    } catch (error) {
+        logger.error('Reset devices error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+});
+
 // Reset data usage
 router.post('/data-usage/reset', (req, res) => {
     try {

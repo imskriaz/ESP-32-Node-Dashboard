@@ -52,13 +52,13 @@
             const mqttPassword = document.getElementById('mqttPassword');
             const mqttClientId = document.getElementById('mqttClientId');
             const statusEl = document.getElementById('mqttConnectionStatus');
-            
+
             if (mqttHost) mqttHost.value = settings.mqtt.host || 'device.atebd.com';
             if (mqttPort) mqttPort.value = settings.mqtt.port || 1883;
             if (mqttUsername) mqttUsername.value = settings.mqtt.username || '';
             if (mqttPassword) mqttPassword.value = settings.mqtt.password || '';
             if (mqttClientId) mqttClientId.value = settings.mqtt.clientId || 'esp32-dashboard';
-            
+
             if (statusEl) {
                 if (settings.mqtt.connected) {
                     statusEl.textContent = 'Connected';
@@ -85,7 +85,7 @@
             const dataLimit = document.getElementById('dataLimit');
             const dataWarning = document.getElementById('dataWarning');
             const dataResetDay = document.getElementById('dataResetDay');
-            
+
             if (modemApn) modemApn.value = settings.modem.apn || 'internet';
             if (modemApnUser) modemApnUser.value = settings.modem.apnUser || '';
             if (modemApnPass) modemApnPass.value = settings.modem.apnPass || '';
@@ -96,7 +96,7 @@
             if (modemPinCode) modemPinCode.value = settings.modem.pinCode || '';
             if (modemBand) modemBand.value = settings.modem.band || 'ALL';
             if (modemRoaming) modemRoaming.checked = settings.modem.roaming || false;
-            
+
             if (settings.modem.dataUsage) {
                 if (dataLimit) dataLimit.value = settings.modem.dataUsage.limit || 0;
                 if (dataWarning) dataWarning.value = settings.modem.dataUsage.warning || 80;
@@ -125,7 +125,7 @@
             const webcamMotionEnable = document.getElementById('webcamMotionEnable');
             const webcamMotionSensitivity = document.getElementById('webcamMotionSensitivity');
             const webcamSensitivityValue = document.getElementById('webcamSensitivityValue');
-            
+
             if (webcamEnabled) webcamEnabled.checked = settings.webcam.enabled || false;
             if (webcamResolution) webcamResolution.value = settings.webcam.resolution || '640x480';
             if (webcamFps) webcamFps.value = settings.webcam.fps || 15;
@@ -162,12 +162,12 @@
             const modemType = document.getElementById('modemType');
             const flashSize = document.getElementById('flashSize');
             const psram = document.getElementById('psram');
-            
+
             if (currentVersion) currentVersion.textContent = settings.firmware.currentVersion || '1.0.0';
             if (availableVersion) availableVersion.textContent = settings.firmware.availableVersion || '---';
-            if (lastCheck) lastCheck.textContent = settings.firmware.lastCheck ? 
+            if (lastCheck) lastCheck.textContent = settings.firmware.lastCheck ?
                 'Last check: ' + new Date(settings.firmware.lastCheck).toLocaleString() : 'Last check: Never';
-            
+
             if (updateBtn) {
                 if (settings.firmware.availableVersion && settings.firmware.availableVersion > settings.firmware.currentVersion) {
                     updateBtn.style.display = 'inline-block';
@@ -175,7 +175,7 @@
                     updateBtn.style.display = 'none';
                 }
             }
-            
+
             if (autoUpdate) autoUpdate.checked = settings.firmware.autoUpdate || false;
             if (updateChannel) updateChannel.value = settings.firmware.updateChannel || 'stable';
             if (updateUrl) updateUrl.value = settings.firmware.updateUrl || 'https://firmware.atebd.com/esp32-s3';
@@ -200,7 +200,7 @@
             const nodeVersion = document.getElementById('nodeVersion');
             const cpuCores = document.getElementById('cpuCores');
             const memoryUsage = document.getElementById('memoryUsage');
-            
+
             if (systemDeviceName) systemDeviceName.value = settings.system.deviceName || 'ESP32-S3 Gateway';
             if (hostname) hostname.textContent = settings.system.hostname || 'unknown';
             if (systemTimezone) systemTimezone.value = settings.system.timezone || 'Asia/Dhaka';
@@ -208,7 +208,7 @@
             if (systemAutoRestart) systemAutoRestart.checked = settings.system.autoRestart || false;
             if (systemRestartTime) systemRestartTime.value = settings.system.restartSchedule || '03:00';
             if (systemBackupConfig) systemBackupConfig.checked = settings.system.backupConfig !== false;
-            
+
             // System info
             if (platform) platform.textContent = settings.system.platform || 'unknown';
             if (nodeVersion) nodeVersion.textContent = settings.system.nodeVersion || 'unknown';
@@ -223,7 +223,7 @@
         // Notification Settings
         if (settings.notifications) {
             const notif = settings.notifications;
-            
+
             // Email
             if (notif.email) {
                 const notifyEmailEnable = document.getElementById('notifyEmailEnable');
@@ -234,7 +234,7 @@
                 const notifyEmailPass = document.getElementById('notifyEmailPass');
                 const notifyFrom = document.getElementById('notifyFrom');
                 const notifyTo = document.getElementById('notifyTo');
-                
+
                 if (notifyEmailEnable) notifyEmailEnable.checked = notif.email.enabled || false;
                 if (notifySmtp) notifySmtp.value = notif.email.smtp || '';
                 if (notifySmtpPort) notifySmtpPort.value = notif.email.port || 587;
@@ -250,7 +250,7 @@
                 const notifyTelegramEnable = document.getElementById('notifyTelegramEnable');
                 const notifyBotToken = document.getElementById('notifyBotToken');
                 const notifyChatId = document.getElementById('notifyChatId');
-                
+
                 if (notifyTelegramEnable) notifyTelegramEnable.checked = notif.telegram.enabled || false;
                 if (notifyBotToken) notifyBotToken.value = notif.telegram.botToken || '';
                 if (notifyChatId) notifyChatId.value = notif.telegram.chatId || '';
@@ -261,7 +261,7 @@
                 const notifyPushoverEnable = document.getElementById('notifyPushoverEnable');
                 const notifyAppToken = document.getElementById('notifyAppToken');
                 const notifyUserKey = document.getElementById('notifyUserKey');
-                
+
                 if (notifyPushoverEnable) notifyPushoverEnable.checked = notif.pushover.enabled || false;
                 if (notifyAppToken) notifyAppToken.value = notif.pushover.appToken || '';
                 if (notifyUserKey) notifyUserKey.value = notif.pushover.userKey || '';
@@ -272,7 +272,7 @@
                 const notifyWebhookEnable = document.getElementById('notifyWebhookEnable');
                 const webhookUrl = document.getElementById('webhookUrl');
                 const webhookMethod = document.getElementById('webhookMethod');
-                
+
                 if (notifyWebhookEnable) notifyWebhookEnable.checked = notif.webhook.enabled || false;
                 if (webhookUrl) webhookUrl.value = notif.webhook.url || '';
                 if (webhookMethod) webhookMethod.value = notif.webhook.method || 'POST';
@@ -285,7 +285,7 @@
             const backupInterval = document.getElementById('backupInterval');
             const backupTime = document.getElementById('backupTime');
             const backupKeepCount = document.getElementById('backupKeepCount');
-            
+
             if (backupAuto) backupAuto.checked = settings.backup.autoBackup || false;
             if (backupInterval) backupInterval.value = settings.backup.backupInterval || 'daily';
             if (backupTime) backupTime.value = settings.backup.backupTime || '02:00';
@@ -497,7 +497,7 @@
     }
 
     // ==================== MQTT SETTINGS ====================
-    window.saveMQTTSettings = function() {
+    window.saveMQTTSettings = function () {
         const host = document.getElementById('mqttHost')?.value;
         const port = document.getElementById('mqttPort')?.value;
         const username = document.getElementById('mqttUsername')?.value;
@@ -520,11 +520,16 @@
         saveSettings('/api/settings/mqtt', data, 'MQTT settings saved');
     };
 
-    window.testMQTTConnection = function() {
+    window.testMQTTConnection = function () {
         const host = document.getElementById('mqttHost')?.value;
         const port = document.getElementById('mqttPort')?.value;
         const username = document.getElementById('mqttUsername')?.value;
         const password = document.getElementById('mqttPassword')?.value;
+
+        if (!host || !port) {
+            showToast('Host and port are required', 'warning');
+            return;
+        }
 
         const data = {
             host: host,
@@ -538,30 +543,32 @@
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Testing...';
         btn.disabled = true;
 
-        fetch('/api/settings/test/mqtt', {
+        console.log('Testing MQTT connection with:', { host, port, username });
+
+        fetch('/api/mqtt/test', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast(data.message, 'success');
-            } else {
-                showToast(data.message, 'danger');
-            }
-        })
-        .catch(error => {
-            showToast('Test failed: ' + error.message, 'danger');
-        })
-        .finally(() => {
-            btn.innerHTML = originalHtml;
-            btn.disabled = false;
-        });
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                } else {
+                    showToast(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Test error:', error);
+                showToast('Test failed: ' + error.message, 'danger');
+            })
+            .finally(() => {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            });
     };
 
-    // ==================== MODEM SETTINGS ====================
-    window.saveModemSettings = function() {
+    window.saveModemSettings = function () {
         const data = {
             apn: document.getElementById('modemApn')?.value || 'internet',
             apnUser: document.getElementById('modemApnUser')?.value || '',
@@ -588,7 +595,7 @@
         saveSettings('/api/settings/modem', data, 'Modem settings saved');
     };
 
-    window.scanNetworks = function() {
+    window.scanNetworks = function () {
         const btn = event.target;
         const originalHtml = btn.innerHTML;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Scanning...';
@@ -602,7 +609,7 @@
         // Show loading in results
         const scanResults = document.getElementById('networkScanResults');
         const networksList = document.getElementById('networksList');
-        
+
         if (scanResults) scanResults.style.display = 'block';
         if (networksList) {
             networksList.innerHTML = `
@@ -661,7 +668,7 @@
     };
 
     // ==================== WEBCAM SETTINGS ====================
-    window.saveWebcamSettings = function() {
+    window.saveWebcamSettings = function () {
         const data = {
             enabled: document.getElementById('webcamEnabled')?.checked || false,
             resolution: document.getElementById('webcamResolution')?.value || '640x480',
@@ -681,7 +688,7 @@
     };
 
     // ==================== FIRMWARE SETTINGS ====================
-    window.checkForUpdates = function() {
+    window.checkForUpdates = function () {
         const btn = event.target;
         const originalHtml = btn.innerHTML;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking...';
@@ -690,43 +697,43 @@
         fetch('/api/settings/firmware/check', {
             method: 'POST'
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast(data.message, 'success');
-                if (data.data) {
-                    const availableVersion = document.getElementById('availableVersion');
-                    const lastCheck = document.getElementById('lastCheck');
-                    const updateBtn = document.getElementById('updateBtn');
-                    
-                    if (availableVersion) availableVersion.textContent = data.data.available || '---';
-                    if (lastCheck) lastCheck.textContent = 'Last check: just now';
-                    
-                    if (updateBtn) {
-                        updateBtn.style.display = data.data.updateAvailable ? 'inline-block' : 'none';
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    if (data.data) {
+                        const availableVersion = document.getElementById('availableVersion');
+                        const lastCheck = document.getElementById('lastCheck');
+                        const updateBtn = document.getElementById('updateBtn');
+
+                        if (availableVersion) availableVersion.textContent = data.data.available || '---';
+                        if (lastCheck) lastCheck.textContent = 'Last check: just now';
+
+                        if (updateBtn) {
+                            updateBtn.style.display = data.data.updateAvailable ? 'inline-block' : 'none';
+                        }
                     }
+                } else {
+                    showToast(data.message, 'danger');
                 }
-            } else {
-                showToast(data.message, 'danger');
-            }
-        })
-        .catch(error => {
-            showToast('Error checking for updates: ' + error.message, 'danger');
-        })
-        .finally(() => {
-            btn.innerHTML = originalHtml;
-            btn.disabled = false;
-        });
+            })
+            .catch(error => {
+                showToast('Error checking for updates: ' + error.message, 'danger');
+            })
+            .finally(() => {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            });
     };
 
-    window.performUpdate = function() {
+    window.performUpdate = function () {
         if (!confirm('Are you sure you want to update the firmware? The device will restart and may be unavailable for a few minutes.')) {
             return;
         }
 
         const btn = document.getElementById('updateBtn');
         if (!btn) return;
-        
+
         const originalHtml = btn.innerHTML;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Updating...';
         btn.disabled = true;
@@ -734,27 +741,27 @@
         fetch('/api/settings/firmware/update', {
             method: 'POST'
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast(data.message, 'success');
-                setTimeout(() => {
-                    window.location.reload();
-                }, 5000);
-            } else {
-                showToast(data.message, 'danger');
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 5000);
+                } else {
+                    showToast(data.message, 'danger');
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                }
+            })
+            .catch(error => {
+                showToast('Error updating firmware: ' + error.message, 'danger');
                 btn.innerHTML = originalHtml;
                 btn.disabled = false;
-            }
-        })
-        .catch(error => {
-            showToast('Error updating firmware: ' + error.message, 'danger');
-            btn.innerHTML = originalHtml;
-            btn.disabled = false;
-        });
+            });
     };
 
-    window.saveFirmwareSettings = function() {
+    window.saveFirmwareSettings = function () {
         const data = {
             autoUpdate: document.getElementById('autoUpdate')?.checked || false,
             updateChannel: document.getElementById('updateChannel')?.value || 'stable',
@@ -765,7 +772,7 @@
     };
 
     // ==================== SYSTEM SETTINGS ====================
-    window.saveSystemSettings = function() {
+    window.saveSystemSettings = function () {
         const data = {
             deviceName: document.getElementById('systemDeviceName')?.value || 'ESP32-S3 Gateway',
             timezone: document.getElementById('systemTimezone')?.value || 'Asia/Dhaka',
@@ -778,7 +785,7 @@
         saveSettings('/api/settings/system', data, 'System settings saved');
     };
 
-    window.restartServer = function() {
+    window.restartServer = function () {
         if (!confirm('Are you sure you want to restart the server? This will temporarily disconnect all clients.')) {
             return;
         }
@@ -800,7 +807,7 @@
             });
     };
 
-    window.viewLogs = function() {
+    window.viewLogs = function () {
         const modal = new bootstrap.Modal(document.getElementById('logsModal'));
         const logsContent = document.getElementById('logsContent');
         if (logsContent) logsContent.textContent = 'Loading logs...';
@@ -822,11 +829,11 @@
             });
     };
 
-    window.downloadLogs = function() {
+    window.downloadLogs = function () {
         window.location.href = '/api/settings/logs/download';
     };
 
-    window.clearLogs = function() {
+    window.clearLogs = function () {
         if (!confirm('Clear all logs?')) return;
 
         fetch('/api/settings/logs/clear', { method: 'POST' })
@@ -844,7 +851,7 @@
     };
 
     // ==================== NOTIFICATION SETTINGS ====================
-    window.saveNotificationSettings = function() {
+    window.saveNotificationSettings = function () {
         const data = {
             email: {
                 enabled: document.getElementById('notifyEmailEnable')?.checked || false,
@@ -877,7 +884,7 @@
         saveSettings('/api/settings/notifications', data, 'Notification settings saved');
     };
 
-    window.testEmail = function() {
+    window.testEmail = function () {
         const data = {
             smtp: document.getElementById('notifySmtp')?.value,
             port: parseInt(document.getElementById('notifySmtpPort')?.value),
@@ -898,24 +905,24 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast(data.message, 'success');
-            } else {
-                showToast(data.message, 'danger');
-            }
-        })
-        .catch(error => {
-            showToast('Test failed: ' + error.message, 'danger');
-        })
-        .finally(() => {
-            btn.innerHTML = originalHtml;
-            btn.disabled = false;
-        });
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                } else {
+                    showToast(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                showToast('Test failed: ' + error.message, 'danger');
+            })
+            .finally(() => {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            });
     };
 
-    window.testTelegram = function() {
+    window.testTelegram = function () {
         const data = {
             botToken: document.getElementById('notifyBotToken')?.value,
             chatId: document.getElementById('notifyChatId')?.value
@@ -931,24 +938,24 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast(data.message, 'success');
-            } else {
-                showToast(data.message, 'danger');
-            }
-        })
-        .catch(error => {
-            showToast('Test failed: ' + error.message, 'danger');
-        })
-        .finally(() => {
-            btn.innerHTML = originalHtml;
-            btn.disabled = false;
-        });
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                } else {
+                    showToast(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                showToast('Test failed: ' + error.message, 'danger');
+            })
+            .finally(() => {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            });
     };
 
-    window.testPushover = function() {
+    window.testPushover = function () {
         const data = {
             appToken: document.getElementById('notifyAppToken')?.value,
             userKey: document.getElementById('notifyUserKey')?.value
@@ -964,25 +971,25 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast(data.message, 'success');
-            } else {
-                showToast(data.message, 'danger');
-            }
-        })
-        .catch(error => {
-            showToast('Test failed: ' + error.message, 'danger');
-        })
-        .finally(() => {
-            btn.innerHTML = originalHtml;
-            btn.disabled = false;
-        });
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                } else {
+                    showToast(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                showToast('Test failed: ' + error.message, 'danger');
+            })
+            .finally(() => {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            });
     };
 
     // ==================== BACKUP FUNCTIONS ====================
-    window.createBackup = function() {
+    window.createBackup = function () {
         const btn = event.target;
         const originalHtml = btn.innerHTML;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Creating...';
@@ -1007,7 +1014,7 @@
             });
     };
 
-    window.restoreBackup = function(filename) {
+    window.restoreBackup = function (filename) {
         if (!confirm(`Restore backup ${filename}? This will overwrite current data and restart the server.`)) {
             return;
         }
@@ -1017,23 +1024,23 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ file: filename })
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast(data.message, 'success');
-                setTimeout(() => {
-                    window.location.reload();
-                }, 5000);
-            } else {
-                showToast(data.message, 'danger');
-            }
-        })
-        .catch(error => {
-            showToast('Error: ' + error.message, 'danger');
-        });
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 5000);
+                } else {
+                    showToast(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                showToast('Error: ' + error.message, 'danger');
+            });
     };
 
-    window.deleteBackup = function(filename) {
+    window.deleteBackup = function (filename) {
         if (!confirm(`Delete backup ${filename}?`)) return;
 
         fetch(`/api/settings/backups/${filename}`, { method: 'DELETE' })
@@ -1050,14 +1057,14 @@
     };
 
     // ==================== USER MANAGEMENT ====================
-    window.addUser = function() {
+    window.addUser = function () {
         const form = document.getElementById('addUserForm');
         if (form) form.reset();
         const modal = new bootstrap.Modal(document.getElementById('addUserModal'));
         modal.show();
     };
 
-    window.saveNewUser = function() {
+    window.saveNewUser = function () {
         const data = {
             username: document.getElementById('newUsername')?.value,
             password: document.getElementById('newPassword')?.value,
@@ -1086,29 +1093,29 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast('User added', 'success');
-                const modal = bootstrap.Modal.getInstance(document.getElementById('addUserModal'));
-                if (modal) modal.hide();
-                loadSettings();
-            } else {
-                showToast(data.message, 'danger');
-            }
-        })
-        .catch(error => {
-            showToast('Error: ' + error.message, 'danger');
-        })
-        .finally(() => {
-            btn.innerHTML = originalHtml;
-            btn.disabled = false;
-        });
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('User added', 'success');
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('addUserModal'));
+                    if (modal) modal.hide();
+                    loadSettings();
+                } else {
+                    showToast(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                showToast('Error: ' + error.message, 'danger');
+            })
+            .finally(() => {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            });
     };
 
-    window.editUser = function(id) {
+    window.editUser = function (id) {
         currentEditUserId = id;
-        
+
         // Find user in settings
         const user = settings.users?.find(u => u.id === id);
         if (!user) return;
@@ -1119,7 +1126,7 @@
         const editEmail = document.getElementById('editEmail');
         const editRole = document.getElementById('editRole');
         const editPassword = document.getElementById('editPassword');
-        
+
         if (editUserId) editUserId.value = user.id;
         if (editUsername) editUsername.value = user.username;
         if (editName) editName.value = user.name || '';
@@ -1131,7 +1138,7 @@
         modal.show();
     };
 
-    window.updateUser = function() {
+    window.updateUser = function () {
         const data = {
             name: document.getElementById('editName')?.value,
             email: document.getElementById('editEmail')?.value,
@@ -1157,27 +1164,27 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast('User updated', 'success');
-                const modal = bootstrap.Modal.getInstance(document.getElementById('editUserModal'));
-                if (modal) modal.hide();
-                loadSettings();
-            } else {
-                showToast(data.message, 'danger');
-            }
-        })
-        .catch(error => {
-            showToast('Error: ' + error.message, 'danger');
-        })
-        .finally(() => {
-            btn.innerHTML = originalHtml;
-            btn.disabled = false;
-        });
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('User updated', 'success');
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('editUserModal'));
+                    if (modal) modal.hide();
+                    loadSettings();
+                } else {
+                    showToast(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                showToast('Error: ' + error.message, 'danger');
+            })
+            .finally(() => {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            });
     };
 
-    window.deleteUser = function(id) {
+    window.deleteUser = function (id) {
         if (!confirm('Delete this user?')) return;
 
         fetch(`/api/settings/users/${id}`, { method: 'DELETE' })
@@ -1193,7 +1200,7 @@
             .catch(console.error);
     };
 
-    window.deleteUserFromEdit = function() {
+    window.deleteUserFromEdit = function () {
         if (currentEditUserId) {
             deleteUser(currentEditUserId);
             const modal = bootstrap.Modal.getInstance(document.getElementById('editUserModal'));
@@ -1213,32 +1220,32 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                showToast(successMessage, 'success');
-                // Reload settings to show updated values
-                setTimeout(loadSettings, 1000);
-            } else {
-                showToast(data.message || 'Failed to save', 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error saving settings:', error);
-            showToast('Error: ' + error.message, 'danger');
-        })
-        .finally(() => {
-            btn.innerHTML = originalHtml;
-            btn.disabled = false;
-        });
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showToast(successMessage, 'success');
+                    // Reload settings to show updated values
+                    setTimeout(loadSettings, 1000);
+                } else {
+                    showToast(data.message || 'Failed to save', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error saving settings:', error);
+                showToast('Error: ' + error.message, 'danger');
+            })
+            .finally(() => {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            });
     }
 
-    window.saveAllSettings = function() {
+    window.saveAllSettings = function () {
         saveMQTTSettings();
         saveModemSettings();
         saveWebcamSettings();
@@ -1248,7 +1255,7 @@
         showToast('All settings saved', 'success');
     };
 
-    window.factoryReset = function() {
+    window.factoryReset = function () {
         if (!confirm('FACTORY RESET: This will delete all data except users and restart the server. Are you sure?')) {
             return;
         }
