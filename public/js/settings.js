@@ -5,6 +5,7 @@
     console.log('Settings.js loaded - ' + new Date().toISOString());
 
     let settings = {};
+    let currentEditUserId = null;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
@@ -45,56 +46,178 @@
     function populateSettings(settings) {
         // MQTT Settings
         if (settings.mqtt) {
-            document.getElementById('mqttHost').value = settings.mqtt.host || 'device.atebd.com';
-            document.getElementById('mqttPort').value = settings.mqtt.port || 1883;
-            document.getElementById('mqttUsername').value = settings.mqtt.username || '';
-            document.getElementById('mqttPassword').value = settings.mqtt.password || '';
-            document.getElementById('mqttClientId').value = settings.mqtt.clientId || 'esp32-dashboard';
+            const mqttHost = document.getElementById('mqttHost');
+            const mqttPort = document.getElementById('mqttPort');
+            const mqttUsername = document.getElementById('mqttUsername');
+            const mqttPassword = document.getElementById('mqttPassword');
+            const mqttClientId = document.getElementById('mqttClientId');
+            const statusEl = document.getElementById('mqttConnectionStatus');
+            
+            if (mqttHost) mqttHost.value = settings.mqtt.host || 'device.atebd.com';
+            if (mqttPort) mqttPort.value = settings.mqtt.port || 1883;
+            if (mqttUsername) mqttUsername.value = settings.mqtt.username || '';
+            if (mqttPassword) mqttPassword.value = settings.mqtt.password || '';
+            if (mqttClientId) mqttClientId.value = settings.mqtt.clientId || 'esp32-dashboard';
+            
+            if (statusEl) {
+                if (settings.mqtt.connected) {
+                    statusEl.textContent = 'Connected';
+                    statusEl.className = 'badge bg-success';
+                } else {
+                    statusEl.textContent = 'Disconnected';
+                    statusEl.className = 'badge bg-danger';
+                }
+            }
         }
 
         // Modem Settings
         if (settings.modem) {
-            document.getElementById('modemApn').value = settings.modem.apn || 'internet';
-            document.getElementById('modemApnUser').value = settings.modem.apnUser || '';
-            document.getElementById('modemApnPass').value = settings.modem.apnPass || '';
-            document.getElementById('modemAuth').value = settings.modem.auth || 'none';
-            document.getElementById('modemNetworkMode').value = settings.modem.networkMode || 'auto';
-            document.getElementById('modemPreferredNetwork').value = settings.modem.preferredNetwork || '';
-            document.getElementById('modemAutoConnect').checked = settings.modem.autoConnect !== false;
-            document.getElementById('modemPinCode').value = settings.modem.pinCode || '';
+            const modemApn = document.getElementById('modemApn');
+            const modemApnUser = document.getElementById('modemApnUser');
+            const modemApnPass = document.getElementById('modemApnPass');
+            const modemAuth = document.getElementById('modemAuth');
+            const modemNetworkMode = document.getElementById('modemNetworkMode');
+            const modemPreferredNetwork = document.getElementById('modemPreferredNetwork');
+            const modemAutoConnect = document.getElementById('modemAutoConnect');
+            const modemPinCode = document.getElementById('modemPinCode');
+            const modemBand = document.getElementById('modemBand');
+            const modemRoaming = document.getElementById('modemRoaming');
+            const dataLimit = document.getElementById('dataLimit');
+            const dataWarning = document.getElementById('dataWarning');
+            const dataResetDay = document.getElementById('dataResetDay');
+            
+            if (modemApn) modemApn.value = settings.modem.apn || 'internet';
+            if (modemApnUser) modemApnUser.value = settings.modem.apnUser || '';
+            if (modemApnPass) modemApnPass.value = settings.modem.apnPass || '';
+            if (modemAuth) modemAuth.value = settings.modem.auth || 'none';
+            if (modemNetworkMode) modemNetworkMode.value = settings.modem.networkMode || 'auto';
+            if (modemPreferredNetwork) modemPreferredNetwork.value = settings.modem.preferredNetwork || 'AUTO';
+            if (modemAutoConnect) modemAutoConnect.checked = settings.modem.autoConnect !== false;
+            if (modemPinCode) modemPinCode.value = settings.modem.pinCode || '';
+            if (modemBand) modemBand.value = settings.modem.band || 'ALL';
+            if (modemRoaming) modemRoaming.checked = settings.modem.roaming || false;
+            
+            if (settings.modem.dataUsage) {
+                if (dataLimit) dataLimit.value = settings.modem.dataUsage.limit || 0;
+                if (dataWarning) dataWarning.value = settings.modem.dataUsage.warning || 80;
+                if (dataResetDay) dataResetDay.value = settings.modem.dataUsage.resetDay || 1;
+            }
         }
 
         // Webcam Settings
         if (settings.webcam) {
-            document.getElementById('webcamEnabled').checked = settings.webcam.enabled || false;
-            document.getElementById('webcamResolution').value = settings.webcam.resolution || '640x480';
-            document.getElementById('webcamFps').value = settings.webcam.fps || 15;
-            document.getElementById('webcamFpsValue').textContent = (settings.webcam.fps || 15) + ' fps';
-            document.getElementById('webcamQuality').value = settings.webcam.quality || 80;
-            document.getElementById('webcamQualityValue').textContent = (settings.webcam.quality || 80) + '%';
-            document.getElementById('webcamBrightness').value = settings.webcam.brightness || 0;
-            document.getElementById('webcamBrightnessValue').textContent = settings.webcam.brightness || 0;
-            document.getElementById('webcamContrast').value = settings.webcam.contrast || 0;
-            document.getElementById('webcamContrastValue').textContent = settings.webcam.contrast || 0;
-            document.getElementById('webcamSaturation').value = settings.webcam.saturation || 0;
-            document.getElementById('webcamSaturationValue').textContent = settings.webcam.saturation || 0;
-            document.getElementById('webcamSharpness').value = settings.webcam.sharpness || 0;
-            document.getElementById('webcamSharpnessValue').textContent = settings.webcam.sharpness || 0;
-            document.getElementById('webcamFlipH').checked = settings.webcam.flip_h || false;
-            document.getElementById('webcamFlipV').checked = settings.webcam.flip_v || false;
-            document.getElementById('webcamMotionEnable').checked = settings.webcam.motion_detection || false;
-            document.getElementById('webcamMotionSensitivity').value = settings.webcam.motion_sensitivity || 50;
-            document.getElementById('webcamSensitivityValue').textContent = (settings.webcam.motion_sensitivity || 50) + '%';
+            const webcamEnabled = document.getElementById('webcamEnabled');
+            const webcamResolution = document.getElementById('webcamResolution');
+            const webcamFps = document.getElementById('webcamFps');
+            const webcamFpsValue = document.getElementById('webcamFpsValue');
+            const webcamQuality = document.getElementById('webcamQuality');
+            const webcamQualityValue = document.getElementById('webcamQualityValue');
+            const webcamBrightness = document.getElementById('webcamBrightness');
+            const webcamBrightnessValue = document.getElementById('webcamBrightnessValue');
+            const webcamContrast = document.getElementById('webcamContrast');
+            const webcamContrastValue = document.getElementById('webcamContrastValue');
+            const webcamSaturation = document.getElementById('webcamSaturation');
+            const webcamSaturationValue = document.getElementById('webcamSaturationValue');
+            const webcamSharpness = document.getElementById('webcamSharpness');
+            const webcamSharpnessValue = document.getElementById('webcamSharpnessValue');
+            const webcamFlipH = document.getElementById('webcamFlipH');
+            const webcamFlipV = document.getElementById('webcamFlipV');
+            const webcamMotionEnable = document.getElementById('webcamMotionEnable');
+            const webcamMotionSensitivity = document.getElementById('webcamMotionSensitivity');
+            const webcamSensitivityValue = document.getElementById('webcamSensitivityValue');
+            
+            if (webcamEnabled) webcamEnabled.checked = settings.webcam.enabled || false;
+            if (webcamResolution) webcamResolution.value = settings.webcam.resolution || '640x480';
+            if (webcamFps) webcamFps.value = settings.webcam.fps || 15;
+            if (webcamFpsValue) webcamFpsValue.textContent = (settings.webcam.fps || 15) + ' fps';
+            if (webcamQuality) webcamQuality.value = settings.webcam.quality || 80;
+            if (webcamQualityValue) webcamQualityValue.textContent = (settings.webcam.quality || 80) + '%';
+            if (webcamBrightness) webcamBrightness.value = settings.webcam.brightness || 0;
+            if (webcamBrightnessValue) webcamBrightnessValue.textContent = settings.webcam.brightness || 0;
+            if (webcamContrast) webcamContrast.value = settings.webcam.contrast || 0;
+            if (webcamContrastValue) webcamContrastValue.textContent = settings.webcam.contrast || 0;
+            if (webcamSaturation) webcamSaturation.value = settings.webcam.saturation || 0;
+            if (webcamSaturationValue) webcamSaturationValue.textContent = settings.webcam.saturation || 0;
+            if (webcamSharpness) webcamSharpness.value = settings.webcam.sharpness || 0;
+            if (webcamSharpnessValue) webcamSharpnessValue.textContent = settings.webcam.sharpness || 0;
+            if (webcamFlipH) webcamFlipH.checked = settings.webcam.flip_h || false;
+            if (webcamFlipV) webcamFlipV.checked = settings.webcam.flip_v || false;
+            if (webcamMotionEnable) webcamMotionEnable.checked = settings.webcam.motion_detection || false;
+            if (webcamMotionSensitivity) webcamMotionSensitivity.value = settings.webcam.motion_sensitivity || 50;
+            if (webcamSensitivityValue) webcamSensitivityValue.textContent = (settings.webcam.motion_sensitivity || 50) + '%';
+        }
+
+        // Firmware Settings
+        if (settings.firmware) {
+            const currentVersion = document.getElementById('currentVersion');
+            const availableVersion = document.getElementById('availableVersion');
+            const lastCheck = document.getElementById('lastCheck');
+            const updateBtn = document.getElementById('updateBtn');
+            const autoUpdate = document.getElementById('autoUpdate');
+            const updateChannel = document.getElementById('updateChannel');
+            const updateUrl = document.getElementById('updateUrl');
+            const deviceModel = document.getElementById('deviceModel');
+            const deviceId = document.getElementById('deviceId');
+            const mcu = document.getElementById('mcu');
+            const modemType = document.getElementById('modemType');
+            const flashSize = document.getElementById('flashSize');
+            const psram = document.getElementById('psram');
+            
+            if (currentVersion) currentVersion.textContent = settings.firmware.currentVersion || '1.0.0';
+            if (availableVersion) availableVersion.textContent = settings.firmware.availableVersion || '---';
+            if (lastCheck) lastCheck.textContent = settings.firmware.lastCheck ? 
+                'Last check: ' + new Date(settings.firmware.lastCheck).toLocaleString() : 'Last check: Never';
+            
+            if (updateBtn) {
+                if (settings.firmware.availableVersion && settings.firmware.availableVersion > settings.firmware.currentVersion) {
+                    updateBtn.style.display = 'inline-block';
+                } else {
+                    updateBtn.style.display = 'none';
+                }
+            }
+            
+            if (autoUpdate) autoUpdate.checked = settings.firmware.autoUpdate || false;
+            if (updateChannel) updateChannel.value = settings.firmware.updateChannel || 'stable';
+            if (updateUrl) updateUrl.value = settings.firmware.updateUrl || 'https://firmware.atebd.com/esp32-s3';
+            if (deviceModel) deviceModel.textContent = settings.firmware.deviceModel || 'ESP32-S3 A7670E';
+            if (deviceId) deviceId.textContent = settings.firmware.deviceId || 'esp32-s3-1';
+            if (mcu) mcu.textContent = settings.firmware.mcu || 'ESP32-S3';
+            if (modemType) modemType.textContent = settings.firmware.modem || 'A7670E';
+            if (flashSize) flashSize.textContent = settings.firmware.flashSize || '16MB';
+            if (psram) psram.textContent = settings.firmware.psram || '8MB';
         }
 
         // System Settings
         if (settings.system) {
-            document.getElementById('systemDeviceName').value = settings.system.deviceName || 'ESP32-S3 Gateway';
-            document.getElementById('systemTimezone').value = settings.system.timezone || 'Asia/Dhaka';
-            document.getElementById('systemLogLevel').value = settings.system.logLevel || 'info';
-            document.getElementById('systemAutoRestart').checked = settings.system.autoRestart || false;
-            document.getElementById('systemRestartTime').value = settings.system.restartSchedule || '03:00';
-            document.getElementById('systemBackupConfig').checked = settings.system.backupConfig !== false;
+            const systemDeviceName = document.getElementById('systemDeviceName');
+            const hostname = document.getElementById('hostname');
+            const systemTimezone = document.getElementById('systemTimezone');
+            const systemLogLevel = document.getElementById('systemLogLevel');
+            const systemAutoRestart = document.getElementById('systemAutoRestart');
+            const systemRestartTime = document.getElementById('systemRestartTime');
+            const systemBackupConfig = document.getElementById('systemBackupConfig');
+            const platform = document.getElementById('platform');
+            const nodeVersion = document.getElementById('nodeVersion');
+            const cpuCores = document.getElementById('cpuCores');
+            const memoryUsage = document.getElementById('memoryUsage');
+            
+            if (systemDeviceName) systemDeviceName.value = settings.system.deviceName || 'ESP32-S3 Gateway';
+            if (hostname) hostname.textContent = settings.system.hostname || 'unknown';
+            if (systemTimezone) systemTimezone.value = settings.system.timezone || 'Asia/Dhaka';
+            if (systemLogLevel) systemLogLevel.value = settings.system.logLevel || 'info';
+            if (systemAutoRestart) systemAutoRestart.checked = settings.system.autoRestart || false;
+            if (systemRestartTime) systemRestartTime.value = settings.system.restartSchedule || '03:00';
+            if (systemBackupConfig) systemBackupConfig.checked = settings.system.backupConfig !== false;
+            
+            // System info
+            if (platform) platform.textContent = settings.system.platform || 'unknown';
+            if (nodeVersion) nodeVersion.textContent = settings.system.nodeVersion || 'unknown';
+            if (cpuCores) cpuCores.textContent = settings.system.cpu || 'unknown';
+            if (memoryUsage && settings.system.memory) {
+                const usedMem = Math.round(settings.system.memory.heapUsed / 1024 / 1024);
+                const totalMem = Math.round(settings.system.memory.heapTotal / 1024 / 1024);
+                memoryUsage.textContent = `${usedMem}MB / ${totalMem}MB`;
+            }
         }
 
         // Notification Settings
@@ -103,37 +226,70 @@
             
             // Email
             if (notif.email) {
-                document.getElementById('notifyEmailEnable').checked = notif.email.enabled || false;
-                document.getElementById('notifySmtp').value = notif.email.smtp || '';
-                document.getElementById('notifySmtpPort').value = notif.email.port || 587;
-                document.getElementById('notifySmtpSecure').checked = notif.email.secure || false;
-                document.getElementById('notifyEmailUser').value = notif.email.user || '';
-                document.getElementById('notifyEmailPass').value = notif.email.pass || '';
-                document.getElementById('notifyFrom').value = notif.email.from || '';
-                document.getElementById('notifyTo').value = notif.email.to || '';
+                const notifyEmailEnable = document.getElementById('notifyEmailEnable');
+                const notifySmtp = document.getElementById('notifySmtp');
+                const notifySmtpPort = document.getElementById('notifySmtpPort');
+                const notifySmtpSecure = document.getElementById('notifySmtpSecure');
+                const notifyEmailUser = document.getElementById('notifyEmailUser');
+                const notifyEmailPass = document.getElementById('notifyEmailPass');
+                const notifyFrom = document.getElementById('notifyFrom');
+                const notifyTo = document.getElementById('notifyTo');
+                
+                if (notifyEmailEnable) notifyEmailEnable.checked = notif.email.enabled || false;
+                if (notifySmtp) notifySmtp.value = notif.email.smtp || '';
+                if (notifySmtpPort) notifySmtpPort.value = notif.email.port || 587;
+                if (notifySmtpSecure) notifySmtpSecure.checked = notif.email.secure || false;
+                if (notifyEmailUser) notifyEmailUser.value = notif.email.user || '';
+                if (notifyEmailPass) notifyEmailPass.value = notif.email.pass || '';
+                if (notifyFrom) notifyFrom.value = notif.email.from || '';
+                if (notifyTo) notifyTo.value = notif.email.to || '';
             }
 
             // Telegram
             if (notif.telegram) {
-                document.getElementById('notifyTelegramEnable').checked = notif.telegram.enabled || false;
-                document.getElementById('notifyBotToken').value = notif.telegram.botToken || '';
-                document.getElementById('notifyChatId').value = notif.telegram.chatId || '';
+                const notifyTelegramEnable = document.getElementById('notifyTelegramEnable');
+                const notifyBotToken = document.getElementById('notifyBotToken');
+                const notifyChatId = document.getElementById('notifyChatId');
+                
+                if (notifyTelegramEnable) notifyTelegramEnable.checked = notif.telegram.enabled || false;
+                if (notifyBotToken) notifyBotToken.value = notif.telegram.botToken || '';
+                if (notifyChatId) notifyChatId.value = notif.telegram.chatId || '';
             }
 
             // Pushover
             if (notif.pushover) {
-                document.getElementById('notifyPushoverEnable').checked = notif.pushover.enabled || false;
-                document.getElementById('notifyAppToken').value = notif.pushover.appToken || '';
-                document.getElementById('notifyUserKey').value = notif.pushover.userKey || '';
+                const notifyPushoverEnable = document.getElementById('notifyPushoverEnable');
+                const notifyAppToken = document.getElementById('notifyAppToken');
+                const notifyUserKey = document.getElementById('notifyUserKey');
+                
+                if (notifyPushoverEnable) notifyPushoverEnable.checked = notif.pushover.enabled || false;
+                if (notifyAppToken) notifyAppToken.value = notif.pushover.appToken || '';
+                if (notifyUserKey) notifyUserKey.value = notif.pushover.userKey || '';
+            }
+
+            // Webhook
+            if (notif.webhook) {
+                const notifyWebhookEnable = document.getElementById('notifyWebhookEnable');
+                const webhookUrl = document.getElementById('webhookUrl');
+                const webhookMethod = document.getElementById('webhookMethod');
+                
+                if (notifyWebhookEnable) notifyWebhookEnable.checked = notif.webhook.enabled || false;
+                if (webhookUrl) webhookUrl.value = notif.webhook.url || '';
+                if (webhookMethod) webhookMethod.value = notif.webhook.method || 'POST';
             }
         }
 
         // Backup Settings
         if (settings.backup) {
-            document.getElementById('backupAuto').checked = settings.backup.autoBackup || false;
-            document.getElementById('backupInterval').value = settings.backup.backupInterval || 'daily';
-            document.getElementById('backupTime').value = settings.backup.backupTime || '02:00';
-            document.getElementById('backupKeepCount').value = settings.backup.keepCount || 7;
+            const backupAuto = document.getElementById('backupAuto');
+            const backupInterval = document.getElementById('backupInterval');
+            const backupTime = document.getElementById('backupTime');
+            const backupKeepCount = document.getElementById('backupKeepCount');
+            
+            if (backupAuto) backupAuto.checked = settings.backup.autoBackup || false;
+            if (backupInterval) backupInterval.value = settings.backup.backupInterval || 'daily';
+            if (backupTime) backupTime.value = settings.backup.backupTime || '02:00';
+            if (backupKeepCount) backupKeepCount.value = settings.backup.keepCount || 7;
         }
 
         // Users Table
@@ -148,6 +304,7 @@
         toggleEmailSettings();
         toggleTelegramSettings();
         togglePushoverSettings();
+        toggleWebhookSettings();
     }
 
     // Display users table
@@ -209,7 +366,7 @@
                                         <i class="bi bi-arrow-counterclockwise"></i> Restore
                                     </button>
                                     <button class="btn btn-sm btn-outline-danger" onclick="deleteBackup('${backup.name}')">
-                                        <i class="bi bi-trash"></i>
+                                        <i class="bi bi-trash"></i> Delete
                                     </button>
                                 </td>
                             </tr>
@@ -232,49 +389,56 @@
         const fpsInput = document.getElementById('webcamFps');
         if (fpsInput) {
             fpsInput.addEventListener('input', (e) => {
-                document.getElementById('webcamFpsValue').textContent = e.target.value + ' fps';
+                const valueEl = document.getElementById('webcamFpsValue');
+                if (valueEl) valueEl.textContent = e.target.value + ' fps';
             });
         }
 
         const qualityInput = document.getElementById('webcamQuality');
         if (qualityInput) {
             qualityInput.addEventListener('input', (e) => {
-                document.getElementById('webcamQualityValue').textContent = e.target.value + '%';
+                const valueEl = document.getElementById('webcamQualityValue');
+                if (valueEl) valueEl.textContent = e.target.value + '%';
             });
         }
 
         const brightnessInput = document.getElementById('webcamBrightness');
         if (brightnessInput) {
             brightnessInput.addEventListener('input', (e) => {
-                document.getElementById('webcamBrightnessValue').textContent = e.target.value;
+                const valueEl = document.getElementById('webcamBrightnessValue');
+                if (valueEl) valueEl.textContent = e.target.value;
             });
         }
 
         const contrastInput = document.getElementById('webcamContrast');
         if (contrastInput) {
             contrastInput.addEventListener('input', (e) => {
-                document.getElementById('webcamContrastValue').textContent = e.target.value;
+                const valueEl = document.getElementById('webcamContrastValue');
+                if (valueEl) valueEl.textContent = e.target.value;
             });
         }
 
         const saturationInput = document.getElementById('webcamSaturation');
         if (saturationInput) {
             saturationInput.addEventListener('input', (e) => {
-                document.getElementById('webcamSaturationValue').textContent = e.target.value;
+                const valueEl = document.getElementById('webcamSaturationValue');
+                if (valueEl) valueEl.textContent = e.target.value;
             });
         }
 
         const sharpnessInput = document.getElementById('webcamSharpness');
         if (sharpnessInput) {
             sharpnessInput.addEventListener('input', (e) => {
-                document.getElementById('webcamSharpnessValue').textContent = e.target.value;
+                const valueEl = document.getElementById('webcamSharpnessValue');
+                if (valueEl) valueEl.textContent = e.target.value;
             });
         }
 
         const motionSensitivity = document.getElementById('webcamMotionSensitivity');
         if (motionSensitivity) {
             motionSensitivity.addEventListener('input', (e) => {
-                document.getElementById('webcamSensitivityValue').textContent = e.target.value + '%';
+                const valueEl = document.getElementById('webcamSensitivityValue');
+                if (valueEl) valueEl.textContent = e.target.value + '%';
             });
         }
 
@@ -293,53 +457,80 @@
         if (pushoverToggle) {
             pushoverToggle.addEventListener('change', togglePushoverSettings);
         }
+
+        const webhookToggle = document.getElementById('notifyWebhookEnable');
+        if (webhookToggle) {
+            webhookToggle.addEventListener('change', toggleWebhookSettings);
+        }
     }
 
     // Toggle functions
     function toggleEmailSettings() {
-        const enabled = document.getElementById('notifyEmailEnable').checked;
-        document.getElementById('emailSettings').style.display = enabled ? 'block' : 'none';
+        const enabled = document.getElementById('notifyEmailEnable')?.checked || false;
+        const settingsDiv = document.getElementById('emailSettings');
+        if (settingsDiv) settingsDiv.style.display = enabled ? 'block' : 'none';
     }
 
     function toggleTelegramSettings() {
-        const enabled = document.getElementById('notifyTelegramEnable').checked;
-        document.getElementById('telegramSettings').style.display = enabled ? 'block' : 'none';
+        const enabled = document.getElementById('notifyTelegramEnable')?.checked || false;
+        const settingsDiv = document.getElementById('telegramSettings');
+        if (settingsDiv) settingsDiv.style.display = enabled ? 'block' : 'none';
     }
 
     function togglePushoverSettings() {
-        const enabled = document.getElementById('notifyPushoverEnable').checked;
-        document.getElementById('pushoverSettings').style.display = enabled ? 'block' : 'none';
+        const enabled = document.getElementById('notifyPushoverEnable')?.checked || false;
+        const settingsDiv = document.getElementById('pushoverSettings');
+        if (settingsDiv) settingsDiv.style.display = enabled ? 'block' : 'none';
+    }
+
+    function toggleWebhookSettings() {
+        const enabled = document.getElementById('notifyWebhookEnable')?.checked || false;
+        const settingsDiv = document.getElementById('webhookSettings');
+        if (settingsDiv) settingsDiv.style.display = enabled ? 'block' : 'none';
     }
 
     function togglePassword(id) {
         const input = document.getElementById(id);
-        input.type = input.type === 'password' ? 'text' : 'password';
+        if (input) {
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
     }
 
     // ==================== MQTT SETTINGS ====================
     window.saveMQTTSettings = function() {
-        const data = {
-            host: document.getElementById('mqttHost').value,
-            port: parseInt(document.getElementById('mqttPort').value),
-            username: document.getElementById('mqttUsername').value,
-            password: document.getElementById('mqttPassword').value,
-            clientId: document.getElementById('mqttClientId').value
-        };
+        const host = document.getElementById('mqttHost')?.value;
+        const port = document.getElementById('mqttPort')?.value;
+        const username = document.getElementById('mqttUsername')?.value;
+        const password = document.getElementById('mqttPassword')?.value;
+        const clientId = document.getElementById('mqttClientId')?.value;
 
-        if (!data.host || !data.port) {
+        if (!host || !port) {
             showToast('Host and port are required', 'warning');
             return;
         }
+
+        const data = {
+            host: host,
+            port: parseInt(port),
+            username: username || '',
+            password: password || '',
+            clientId: clientId || 'esp32-dashboard'
+        };
 
         saveSettings('/api/settings/mqtt', data, 'MQTT settings saved');
     };
 
     window.testMQTTConnection = function() {
+        const host = document.getElementById('mqttHost')?.value;
+        const port = document.getElementById('mqttPort')?.value;
+        const username = document.getElementById('mqttUsername')?.value;
+        const password = document.getElementById('mqttPassword')?.value;
+
         const data = {
-            host: document.getElementById('mqttHost').value,
-            port: parseInt(document.getElementById('mqttPort').value),
-            username: document.getElementById('mqttUsername').value,
-            password: document.getElementById('mqttPassword').value
+            host: host,
+            port: parseInt(port),
+            username: username || '',
+            password: password || ''
         };
 
         const btn = event.target;
@@ -372,14 +563,21 @@
     // ==================== MODEM SETTINGS ====================
     window.saveModemSettings = function() {
         const data = {
-            apn: document.getElementById('modemApn').value,
-            apnUser: document.getElementById('modemApnUser').value,
-            apnPass: document.getElementById('modemApnPass').value,
-            auth: document.getElementById('modemAuth').value,
-            networkMode: document.getElementById('modemNetworkMode').value,
-            preferredNetwork: document.getElementById('modemPreferredNetwork').value,
-            autoConnect: document.getElementById('modemAutoConnect').checked,
-            pinCode: document.getElementById('modemPinCode').value
+            apn: document.getElementById('modemApn')?.value || 'internet',
+            apnUser: document.getElementById('modemApnUser')?.value || '',
+            apnPass: document.getElementById('modemApnPass')?.value || '',
+            auth: document.getElementById('modemAuth')?.value || 'none',
+            networkMode: document.getElementById('modemNetworkMode')?.value || 'auto',
+            preferredNetwork: document.getElementById('modemPreferredNetwork')?.value || 'AUTO',
+            autoConnect: document.getElementById('modemAutoConnect')?.checked || false,
+            pinCode: document.getElementById('modemPinCode')?.value || '',
+            band: document.getElementById('modemBand')?.value || 'ALL',
+            roaming: document.getElementById('modemRoaming')?.checked || false,
+            dataUsage: {
+                limit: parseInt(document.getElementById('dataLimit')?.value) || 0,
+                warning: parseInt(document.getElementById('dataWarning')?.value) || 80,
+                resetDay: parseInt(document.getElementById('dataResetDay')?.value) || 1
+            }
         };
 
         if (!data.apn) {
@@ -396,63 +594,185 @@
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Scanning...';
         btn.disabled = true;
 
-        // This would call an API to scan networks
-        setTimeout(() => {
-            document.getElementById('networkScanResults').style.display = 'block';
-            document.getElementById('networksList').innerHTML = `
-                <div class="list-group-item">
-                    <div class="d-flex justify-content-between">
-                        <span><i class="bi bi-broadcast me-2"></i>Robi 4G</span>
-                        <span class="badge bg-success">85%</span>
-                    </div>
-                </div>
-                <div class="list-group-item">
-                    <div class="d-flex justify-content-between">
-                        <span><i class="bi bi-broadcast me-2"></i>Grameenphone</span>
-                        <span class="badge bg-warning">65%</span>
-                    </div>
-                </div>
-                <div class="list-group-item">
-                    <div class="d-flex justify-content-between">
-                        <span><i class="bi bi-broadcast me-2"></i>Banglalink</span>
-                        <span class="badge bg-danger">40%</span>
-                    </div>
+        // Request scan from device via MQTT
+        if (typeof socket !== 'undefined' && socket.connected) {
+            socket.emit('modem:scan-networks');
+        }
+
+        // Show loading in results
+        const scanResults = document.getElementById('networkScanResults');
+        const networksList = document.getElementById('networksList');
+        
+        if (scanResults) scanResults.style.display = 'block';
+        if (networksList) {
+            networksList.innerHTML = `
+                <div class="list-group-item text-center py-3">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                    <span class="ms-2">Scanning for networks...</span>
                 </div>
             `;
+        }
+
+        // Simulate scan results for now (in production, these would come from WebSocket)
+        setTimeout(() => {
+            if (networksList) {
+                networksList.innerHTML = `
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-broadcast text-primary me-2"></i>
+                                <strong>Robi 4G</strong>
+                            </div>
+                            <div>
+                                <span class="badge bg-success me-2">Available</span>
+                                <small class="text-muted">Operator: 47001</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-broadcast text-primary me-2"></i>
+                                <strong>Grameenphone</strong>
+                            </div>
+                            <div>
+                                <span class="badge bg-success me-2">Available</span>
+                                <small class="text-muted">Operator: 47002</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-broadcast text-primary me-2"></i>
+                                <strong>Banglalink</strong>
+                            </div>
+                            <div>
+                                <span class="badge bg-warning me-2">Restricted</span>
+                                <small class="text-muted">Operator: 47003</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
             btn.innerHTML = originalHtml;
             btn.disabled = false;
-        }, 2000);
+        }, 3000);
     };
 
     // ==================== WEBCAM SETTINGS ====================
     window.saveWebcamSettings = function() {
         const data = {
-            enabled: document.getElementById('webcamEnabled').checked,
-            resolution: document.getElementById('webcamResolution').value,
-            fps: parseInt(document.getElementById('webcamFps').value),
-            quality: parseInt(document.getElementById('webcamQuality').value),
-            brightness: parseInt(document.getElementById('webcamBrightness').value),
-            contrast: parseInt(document.getElementById('webcamContrast').value),
-            saturation: parseInt(document.getElementById('webcamSaturation').value),
-            sharpness: parseInt(document.getElementById('webcamSharpness').value),
-            flip_h: document.getElementById('webcamFlipH').checked,
-            flip_v: document.getElementById('webcamFlipV').checked,
-            motion_detection: document.getElementById('webcamMotionEnable').checked,
-            motion_sensitivity: parseInt(document.getElementById('webcamMotionSensitivity').value)
+            enabled: document.getElementById('webcamEnabled')?.checked || false,
+            resolution: document.getElementById('webcamResolution')?.value || '640x480',
+            fps: parseInt(document.getElementById('webcamFps')?.value) || 15,
+            quality: parseInt(document.getElementById('webcamQuality')?.value) || 80,
+            brightness: parseInt(document.getElementById('webcamBrightness')?.value) || 0,
+            contrast: parseInt(document.getElementById('webcamContrast')?.value) || 0,
+            saturation: parseInt(document.getElementById('webcamSaturation')?.value) || 0,
+            sharpness: parseInt(document.getElementById('webcamSharpness')?.value) || 0,
+            flip_h: document.getElementById('webcamFlipH')?.checked || false,
+            flip_v: document.getElementById('webcamFlipV')?.checked || false,
+            motion_detection: document.getElementById('webcamMotionEnable')?.checked || false,
+            motion_sensitivity: parseInt(document.getElementById('webcamMotionSensitivity')?.value) || 50
         };
 
         saveSettings('/api/settings/webcam', data, 'Webcam settings saved');
     };
 
+    // ==================== FIRMWARE SETTINGS ====================
+    window.checkForUpdates = function() {
+        const btn = event.target;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking...';
+        btn.disabled = true;
+
+        fetch('/api/settings/firmware/check', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message, 'success');
+                if (data.data) {
+                    const availableVersion = document.getElementById('availableVersion');
+                    const lastCheck = document.getElementById('lastCheck');
+                    const updateBtn = document.getElementById('updateBtn');
+                    
+                    if (availableVersion) availableVersion.textContent = data.data.available || '---';
+                    if (lastCheck) lastCheck.textContent = 'Last check: just now';
+                    
+                    if (updateBtn) {
+                        updateBtn.style.display = data.data.updateAvailable ? 'inline-block' : 'none';
+                    }
+                }
+            } else {
+                showToast(data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            showToast('Error checking for updates: ' + error.message, 'danger');
+        })
+        .finally(() => {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        });
+    };
+
+    window.performUpdate = function() {
+        if (!confirm('Are you sure you want to update the firmware? The device will restart and may be unavailable for a few minutes.')) {
+            return;
+        }
+
+        const btn = document.getElementById('updateBtn');
+        if (!btn) return;
+        
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Updating...';
+        btn.disabled = true;
+
+        fetch('/api/settings/firmware/update', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message, 'success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 5000);
+            } else {
+                showToast(data.message, 'danger');
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+        })
+        .catch(error => {
+            showToast('Error updating firmware: ' + error.message, 'danger');
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        });
+    };
+
+    window.saveFirmwareSettings = function() {
+        const data = {
+            autoUpdate: document.getElementById('autoUpdate')?.checked || false,
+            updateChannel: document.getElementById('updateChannel')?.value || 'stable',
+            updateUrl: document.getElementById('updateUrl')?.value || 'https://firmware.atebd.com/esp32-s3'
+        };
+
+        saveSettings('/api/settings/firmware', data, 'Firmware settings saved');
+    };
+
     // ==================== SYSTEM SETTINGS ====================
     window.saveSystemSettings = function() {
         const data = {
-            deviceName: document.getElementById('systemDeviceName').value,
-            timezone: document.getElementById('systemTimezone').value,
-            logLevel: document.getElementById('systemLogLevel').value,
-            autoRestart: document.getElementById('systemAutoRestart').checked,
-            restartSchedule: document.getElementById('systemRestartTime').value,
-            backupConfig: document.getElementById('systemBackupConfig').checked
+            deviceName: document.getElementById('systemDeviceName')?.value || 'ESP32-S3 Gateway',
+            timezone: document.getElementById('systemTimezone')?.value || 'Asia/Dhaka',
+            logLevel: document.getElementById('systemLogLevel')?.value || 'info',
+            autoRestart: document.getElementById('systemAutoRestart')?.checked || false,
+            restartSchedule: document.getElementById('systemRestartTime')?.value || '03:00',
+            backupConfig: document.getElementById('systemBackupConfig')?.checked || false
         };
 
         saveSettings('/api/settings/system', data, 'System settings saved');
@@ -482,32 +802,42 @@
 
     window.viewLogs = function() {
         const modal = new bootstrap.Modal(document.getElementById('logsModal'));
-        document.getElementById('logsContent').textContent = 'Loading logs...';
+        const logsContent = document.getElementById('logsContent');
+        if (logsContent) logsContent.textContent = 'Loading logs...';
         modal.show();
 
-        fetch('/logs/app.log')
-            .then(response => response.text())
+        fetch('/api/settings/logs')
+            .then(response => response.json())
             .then(data => {
-                document.getElementById('logsContent').textContent = data || 'No logs found';
+                if (logsContent) {
+                    if (data.success) {
+                        logsContent.textContent = data.data || 'No logs found';
+                    } else {
+                        logsContent.textContent = 'Error loading logs: ' + data.message;
+                    }
+                }
             })
             .catch(error => {
-                document.getElementById('logsContent').textContent = 'Error loading logs: ' + error.message;
+                if (logsContent) logsContent.textContent = 'Error loading logs: ' + error.message;
             });
     };
 
     window.downloadLogs = function() {
-        window.location.href = '/logs/app.log';
+        window.location.href = '/api/settings/logs/download';
     };
 
     window.clearLogs = function() {
         if (!confirm('Clear all logs?')) return;
 
-        fetch('/logs/clear', { method: 'POST' })
+        fetch('/api/settings/logs/clear', { method: 'POST' })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     showToast('Logs cleared', 'success');
-                    document.getElementById('logsContent').textContent = 'Logs cleared';
+                    const logsContent = document.getElementById('logsContent');
+                    if (logsContent) logsContent.textContent = 'Logs cleared';
+                } else {
+                    showToast(data.message, 'danger');
                 }
             })
             .catch(console.error);
@@ -517,36 +847,138 @@
     window.saveNotificationSettings = function() {
         const data = {
             email: {
-                enabled: document.getElementById('notifyEmailEnable').checked,
-                smtp: document.getElementById('notifySmtp').value,
-                port: parseInt(document.getElementById('notifySmtpPort').value),
-                secure: document.getElementById('notifySmtpSecure').checked,
-                user: document.getElementById('notifyEmailUser').value,
-                pass: document.getElementById('notifyEmailPass').value,
-                from: document.getElementById('notifyFrom').value,
-                to: document.getElementById('notifyTo').value
+                enabled: document.getElementById('notifyEmailEnable')?.checked || false,
+                smtp: document.getElementById('notifySmtp')?.value || '',
+                port: parseInt(document.getElementById('notifySmtpPort')?.value) || 587,
+                secure: document.getElementById('notifySmtpSecure')?.checked || false,
+                user: document.getElementById('notifyEmailUser')?.value || '',
+                pass: document.getElementById('notifyEmailPass')?.value || '',
+                from: document.getElementById('notifyFrom')?.value || '',
+                to: document.getElementById('notifyTo')?.value || ''
             },
             telegram: {
-                enabled: document.getElementById('notifyTelegramEnable').checked,
-                botToken: document.getElementById('notifyBotToken').value,
-                chatId: document.getElementById('notifyChatId').value
+                enabled: document.getElementById('notifyTelegramEnable')?.checked || false,
+                botToken: document.getElementById('notifyBotToken')?.value || '',
+                chatId: document.getElementById('notifyChatId')?.value || ''
             },
             pushover: {
-                enabled: document.getElementById('notifyPushoverEnable').checked,
-                appToken: document.getElementById('notifyAppToken').value,
-                userKey: document.getElementById('notifyUserKey').value
+                enabled: document.getElementById('notifyPushoverEnable')?.checked || false,
+                appToken: document.getElementById('notifyAppToken')?.value || '',
+                userKey: document.getElementById('notifyUserKey')?.value || ''
+            },
+            webhook: {
+                enabled: document.getElementById('notifyWebhookEnable')?.checked || false,
+                url: document.getElementById('webhookUrl')?.value || '',
+                method: document.getElementById('webhookMethod')?.value || 'POST',
+                headers: {}
             }
         };
 
         saveSettings('/api/settings/notifications', data, 'Notification settings saved');
     };
 
+    window.testEmail = function() {
+        const data = {
+            smtp: document.getElementById('notifySmtp')?.value,
+            port: parseInt(document.getElementById('notifySmtpPort')?.value),
+            secure: document.getElementById('notifySmtpSecure')?.checked,
+            user: document.getElementById('notifyEmailUser')?.value,
+            pass: document.getElementById('notifyEmailPass')?.value,
+            from: document.getElementById('notifyFrom')?.value,
+            to: document.getElementById('notifyTo')?.value
+        };
+
+        const btn = event.target;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
+        btn.disabled = true;
+
+        fetch('/api/settings/test/email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message, 'success');
+            } else {
+                showToast(data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            showToast('Test failed: ' + error.message, 'danger');
+        })
+        .finally(() => {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        });
+    };
+
     window.testTelegram = function() {
-        showToast('Test message sent to Telegram', 'success');
+        const data = {
+            botToken: document.getElementById('notifyBotToken')?.value,
+            chatId: document.getElementById('notifyChatId')?.value
+        };
+
+        const btn = event.target;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
+        btn.disabled = true;
+
+        fetch('/api/settings/test/telegram', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message, 'success');
+            } else {
+                showToast(data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            showToast('Test failed: ' + error.message, 'danger');
+        })
+        .finally(() => {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        });
     };
 
     window.testPushover = function() {
-        showToast('Test message sent to Pushover', 'success');
+        const data = {
+            appToken: document.getElementById('notifyAppToken')?.value,
+            userKey: document.getElementById('notifyUserKey')?.value
+        };
+
+        const btn = event.target;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
+        btn.disabled = true;
+
+        fetch('/api/settings/test/pushover', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message, 'success');
+            } else {
+                showToast(data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            showToast('Test failed: ' + error.message, 'danger');
+        })
+        .finally(() => {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        });
     };
 
     // ==================== BACKUP FUNCTIONS ====================
@@ -604,7 +1036,7 @@
     window.deleteBackup = function(filename) {
         if (!confirm(`Delete backup ${filename}?`)) return;
 
-        fetch(`/backups/${filename}`, { method: 'DELETE' })
+        fetch(`/api/settings/backups/${filename}`, { method: 'DELETE' })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
@@ -619,17 +1051,19 @@
 
     // ==================== USER MANAGEMENT ====================
     window.addUser = function() {
+        const form = document.getElementById('addUserForm');
+        if (form) form.reset();
         const modal = new bootstrap.Modal(document.getElementById('addUserModal'));
         modal.show();
     };
 
     window.saveNewUser = function() {
         const data = {
-            username: document.getElementById('newUsername').value,
-            password: document.getElementById('newPassword').value,
-            name: document.getElementById('newName').value,
-            email: document.getElementById('newEmail').value,
-            role: document.getElementById('newRole').value
+            username: document.getElementById('newUsername')?.value,
+            password: document.getElementById('newPassword')?.value,
+            name: document.getElementById('newName')?.value,
+            email: document.getElementById('newEmail')?.value,
+            role: document.getElementById('newRole')?.value || 'user'
         };
 
         if (!data.username || !data.password) {
@@ -637,7 +1071,17 @@
             return;
         }
 
-        fetch('/api/users', {
+        if (data.password.length < 6) {
+            showToast('Password must be at least 6 characters', 'warning');
+            return;
+        }
+
+        const btn = event.target;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving...';
+        btn.disabled = true;
+
+        fetch('/api/settings/users', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -647,24 +1091,96 @@
             if (data.success) {
                 showToast('User added', 'success');
                 const modal = bootstrap.Modal.getInstance(document.getElementById('addUserModal'));
-                modal.hide();
+                if (modal) modal.hide();
                 loadSettings();
             } else {
                 showToast(data.message, 'danger');
             }
         })
-        .catch(console.error);
+        .catch(error => {
+            showToast('Error: ' + error.message, 'danger');
+        })
+        .finally(() => {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        });
     };
 
     window.editUser = function(id) {
-        // Implement edit user modal
-        showToast('Edit user feature coming soon', 'info');
+        currentEditUserId = id;
+        
+        // Find user in settings
+        const user = settings.users?.find(u => u.id === id);
+        if (!user) return;
+
+        const editUserId = document.getElementById('editUserId');
+        const editUsername = document.getElementById('editUsername');
+        const editName = document.getElementById('editName');
+        const editEmail = document.getElementById('editEmail');
+        const editRole = document.getElementById('editRole');
+        const editPassword = document.getElementById('editPassword');
+        
+        if (editUserId) editUserId.value = user.id;
+        if (editUsername) editUsername.value = user.username;
+        if (editName) editName.value = user.name || '';
+        if (editEmail) editEmail.value = user.email || '';
+        if (editRole) editRole.value = user.role || 'user';
+        if (editPassword) editPassword.value = '';
+
+        const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
+        modal.show();
+    };
+
+    window.updateUser = function() {
+        const data = {
+            name: document.getElementById('editName')?.value,
+            email: document.getElementById('editEmail')?.value,
+            role: document.getElementById('editRole')?.value || 'user'
+        };
+
+        const password = document.getElementById('editPassword')?.value;
+        if (password) {
+            if (password.length < 6) {
+                showToast('Password must be at least 6 characters', 'warning');
+                return;
+            }
+            data.password = password;
+        }
+
+        const btn = event.target;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving...';
+        btn.disabled = true;
+
+        fetch(`/api/settings/users/${currentEditUserId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('User updated', 'success');
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editUserModal'));
+                if (modal) modal.hide();
+                loadSettings();
+            } else {
+                showToast(data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            showToast('Error: ' + error.message, 'danger');
+        })
+        .finally(() => {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        });
     };
 
     window.deleteUser = function(id) {
         if (!confirm('Delete this user?')) return;
 
-        fetch(`/api/users/${id}`, { method: 'DELETE' })
+        fetch(`/api/settings/users/${id}`, { method: 'DELETE' })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
@@ -675,6 +1191,14 @@
                 }
             })
             .catch(console.error);
+    };
+
+    window.deleteUserFromEdit = function() {
+        if (currentEditUserId) {
+            deleteUser(currentEditUserId);
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editUserModal'));
+            if (modal) modal.hide();
+        }
     };
 
     // ==================== UTILITY FUNCTIONS ====================
@@ -698,6 +1222,8 @@
         .then(data => {
             if (data.success) {
                 showToast(successMessage, 'success');
+                // Reload settings to show updated values
+                setTimeout(loadSettings, 1000);
             } else {
                 showToast(data.message || 'Failed to save', 'danger');
             }
@@ -716,6 +1242,7 @@
         saveMQTTSettings();
         saveModemSettings();
         saveWebcamSettings();
+        saveFirmwareSettings();
         saveSystemSettings();
         saveNotificationSettings();
         showToast('All settings saved', 'success');
@@ -723,6 +1250,9 @@
 
     window.factoryReset = function() {
         if (!confirm('FACTORY RESET: This will delete all data except users and restart the server. Are you sure?')) {
+            return;
+        }
+        if (!confirm('This action cannot be undone. Type "RESET" to confirm.')) {
             return;
         }
 
@@ -764,12 +1294,16 @@
     window.saveModemSettings = saveModemSettings;
     window.scanNetworks = scanNetworks;
     window.saveWebcamSettings = saveWebcamSettings;
+    window.checkForUpdates = checkForUpdates;
+    window.performUpdate = performUpdate;
+    window.saveFirmwareSettings = saveFirmwareSettings;
     window.saveSystemSettings = saveSystemSettings;
     window.restartServer = restartServer;
     window.viewLogs = viewLogs;
     window.downloadLogs = downloadLogs;
     window.clearLogs = clearLogs;
     window.saveNotificationSettings = saveNotificationSettings;
+    window.testEmail = testEmail;
     window.testTelegram = testTelegram;
     window.testPushover = testPushover;
     window.createBackup = createBackup;
@@ -778,6 +1312,7 @@
     window.addUser = addUser;
     window.editUser = editUser;
     window.deleteUser = deleteUser;
+    window.deleteUserFromEdit = deleteUserFromEdit;
     window.saveAllSettings = saveAllSettings;
     window.factoryReset = factoryReset;
 })();

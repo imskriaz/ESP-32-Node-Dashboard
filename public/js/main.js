@@ -46,15 +46,18 @@ function initializeSocket() {
     
     socket.on('connect', function() {
         console.log('Socket connected');
+        updateSidebarStatus(true);
     });
     
     socket.on('disconnect', function() {
         console.log('Socket disconnected');
+        updateSidebarStatus(false);
         showToast('Disconnected from server', 'warning');
     });
     
     socket.on('reconnect', function(attemptNumber) {
         console.log('Reconnected after', attemptNumber, 'attempts');
+        updateSidebarStatus(true);
         showToast('Reconnected to server', 'success');
     });
     
@@ -85,6 +88,11 @@ function initializeSocket() {
     socket.on('sms:read', function(data) {
         console.log('SMS marked as read:', data);
         updateUnreadBadge();
+    });
+    
+    socket.on('device:status', function(data) {
+        console.log('Device status update:', data);
+        updateSidebarDeviceStatus(data);
     });
 }
 
@@ -159,7 +167,57 @@ function setupEventListeners() {
     });
 }
 
-// Send SMS function - FIXED
+// Update sidebar status (online/offline)
+function updateSidebarStatus(online) {
+    const onlineIndicator = document.getElementById('sidebarOnlineIndicator');
+    const offlineIndicator = document.getElementById('sidebarOfflineIndicator');
+    const statusText = document.getElementById('sidebarStatusText');
+    
+    if (online) {
+        onlineIndicator.style.display = 'inline-block';
+        offlineIndicator.style.display = 'none';
+        statusText.textContent = 'Online';
+        statusText.className = 'fw-medium text-success';
+    } else {
+        onlineIndicator.style.display = 'none';
+        offlineIndicator.style.display = 'inline-block';
+        statusText.textContent = 'Offline';
+        statusText.className = 'fw-medium text-secondary';
+    }
+}
+
+// Update sidebar device status
+function updateSidebarDeviceStatus(status) {
+    if (!status) return;
+    
+    // Update signal
+    const signal = status.signal || 0;
+    document.getElementById('sidebarSignal').textContent = signal + '%';
+    document.getElementById('sidebarSignalBar').style.width = signal + '%';
+    document.getElementById('sidebarSignalBar').className = signal > 70 ? 'progress-bar bg-success' : 
+                                                            signal > 40 ? 'progress-bar bg-warning' : 
+                                                            'progress-bar bg-danger';
+    
+    // Update battery
+    const battery = status.battery || 0;
+    document.getElementById('sidebarBattery').textContent = battery + '%';
+    
+    const chargingEl = document.getElementById('sidebarCharging');
+    if (status.charging) {
+        chargingEl.style.display = 'inline';
+    } else {
+        chargingEl.style.display = 'none';
+    }
+    
+    // Update network
+    document.getElementById('sidebarNetwork').textContent = status.network || '---';
+    document.getElementById('sidebarOperator').textContent = status.operator || '---';
+    
+    // Update uptime
+    document.getElementById('sidebarUptime').textContent = status.uptime || '0d 0h';
+}
+
+// Send SMS function
 function sendSms(formId, button) {
     const form = document.getElementById(formId);
     if (!form) {
@@ -306,27 +364,13 @@ function startStatusUpdates() {
     setInterval(updateDeviceStatus, 30000); // Update every 30 seconds
 }
 
-// Update device status in sidebar
+// Update device status
 function updateDeviceStatus() {
     fetch('/api/status')
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                const signalEl = document.getElementById('sidebarSignal');
-                const batteryEl = document.getElementById('sidebarBattery');
-                const signalBar = document.getElementById('sidebarSignalBar');
-                const batteryBar = document.getElementById('sidebarBatteryBar');
-                const networkEl = document.getElementById('sidebarNetwork');
-                const tempEl = document.getElementById('sidebarTemp');
-                const uptimeEl = document.getElementById('sidebarUptime');
-                
-                if (signalEl) signalEl.textContent = data.data.signal + '%';
-                if (signalBar) signalBar.style.width = data.data.signal + '%';
-                if (batteryEl) batteryEl.textContent = data.data.battery + '%';
-                if (batteryBar) batteryBar.style.width = data.data.battery + '%';
-                if (networkEl) networkEl.textContent = data.data.network;
-                if (tempEl) tempEl.textContent = data.data.temperature + '°C';
-                if (uptimeEl) uptimeEl.textContent = data.data.uptime;
+                updateSidebarDeviceStatus(data.data);
             }
         })
         .catch(error => console.error('Error updating status:', error));

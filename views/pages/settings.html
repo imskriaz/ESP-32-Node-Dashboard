@@ -34,6 +34,11 @@
         </button>
     </li>
     <li class="nav-item" role="presentation">
+        <button class="nav-link" id="firmware-tab" data-bs-toggle="tab" data-bs-target="#firmware" type="button">
+            <i class="bi bi-arrow-up-circle me-2"></i>Firmware
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
         <button class="nav-link" id="system-tab" data-bs-toggle="tab" data-bs-target="#system" type="button">
             <i class="bi bi-cpu me-2"></i>System
         </button>
@@ -48,16 +53,22 @@
             <i class="bi bi-database me-2"></i>Backup
         </button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button">
+            <i class="bi bi-people me-2"></i>Users
+        </button>
+    </li>
 </ul>
 
 <div class="tab-content">
     <!-- ==================== MQTT SETTINGS ==================== -->
     <div class="tab-pane fade show active" id="mqtt" role="tabpanel">
         <div class="card">
-            <div class="card-header bg-white py-3">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="bi bi-hdd-network me-2"></i>MQTT Broker Settings
                 </h5>
+                <span class="badge" id="mqttConnectionStatus">Checking...</span>
             </div>
             <div class="card-body">
                 <form id="mqttSettingsForm">
@@ -104,6 +115,7 @@
                                     <small class="d-block"><strong>Command:</strong> device/+/command/#</small>
                                     <small class="d-block"><strong>Status:</strong> device/+/status</small>
                                     <small class="d-block"><strong>SMS:</strong> device/+/sms/#</small>
+                                    <small class="d-block"><strong>OTA:</strong> device/+/ota/#</small>
                                 </div>
                                 <div class="col-md-6">
                                     <small class="d-block"><strong>Call:</strong> device/+/call/#</small>
@@ -178,12 +190,32 @@
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Preferred Network</label>
                             <select class="form-select" id="modemPreferredNetwork">
-                                <option value="">Auto</option>
+                                <option value="AUTO">Auto</option>
                                 <option value="ROBI">Robi</option>
                                 <option value="GP">Grameenphone</option>
                                 <option value="BL">Banglalink</option>
                                 <option value="TELETALK">Teletalk</option>
                             </select>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Band Selection</label>
+                            <select class="form-select" id="modemBand">
+                                <option value="ALL">All Bands</option>
+                                <option value="B1">Band 1 (2100MHz)</option>
+                                <option value="B3">Band 3 (1800MHz)</option>
+                                <option value="B5">Band 5 (850MHz)</option>
+                                <option value="B8">Band 8 (900MHz)</option>
+                                <option value="B40">Band 40 (2300MHz)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check form-switch mt-4">
+                                <input class="form-check-input" type="checkbox" id="modemRoaming">
+                                <label class="form-check-label fw-bold" for="modemRoaming">Allow Roaming</label>
+                            </div>
                         </div>
                     </div>
 
@@ -198,6 +230,25 @@
                         <div class="col-md-6">
                             <label class="form-label fw-bold">SIM PIN (optional)</label>
                             <input type="password" class="form-control" id="modemPinCode" placeholder="****" maxlength="4">
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <h6 class="fw-bold mb-3">Data Usage Settings</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Data Limit (MB)</label>
+                            <input type="number" class="form-control" id="dataLimit" value="0" min="0">
+                            <small class="text-muted">0 = Unlimited</small>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Warning at (%)</label>
+                            <input type="number" class="form-control" id="dataWarning" value="80" min="1" max="100">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Reset Day</label>
+                            <input type="number" class="form-control" id="dataResetDay" value="1" min="1" max="31">
                         </div>
                     </div>
 
@@ -355,6 +406,103 @@
         </div>
     </div>
 
+    <!-- ==================== FIRMWARE SETTINGS ==================== -->
+    <div class="tab-pane fade" id="firmware" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-arrow-up-circle me-2"></i>Firmware Update
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6>Current Version</h6>
+                                <h3 id="currentVersion">1.0.0</h3>
+                                <small class="text-muted" id="lastCheck">Last check: Never</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6>Available Version</h6>
+                                <h3 id="availableVersion">---</h3>
+                                <button class="btn btn-primary btn-sm mt-2" onclick="checkForUpdates()">
+                                    <i class="bi bi-search"></i> Check for Updates
+                                </button>
+                                <button class="btn btn-success btn-sm mt-2" id="updateBtn" style="display: none;" onclick="performUpdate()">
+                                    <i class="bi bi-arrow-up-circle"></i> Update Now
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+
+                <form id="firmwareSettingsForm">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="autoUpdate">
+                                <label class="form-check-label fw-bold" for="autoUpdate">Auto Update</label>
+                            </div>
+                            <small class="text-muted">Automatically install stable updates</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Update Channel</label>
+                            <select class="form-select" id="updateChannel">
+                                <option value="stable">Stable (Recommended)</option>
+                                <option value="beta">Beta</option>
+                                <option value="dev">Development</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Update URL</label>
+                        <input type="url" class="form-control" id="updateUrl" value="https://firmware.atebd.com/esp32-s3">
+                    </div>
+
+                    <h6 class="fw-bold mb-3">Device Information</h6>
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            <small class="text-muted d-block">Model</small>
+                            <strong id="deviceModel">ESP32-S3 A7670E</strong>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <small class="text-muted d-block">Device ID</small>
+                            <strong id="deviceId">esp32-s3-1</strong>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <small class="text-muted d-block">MCU</small>
+                            <strong id="mcu">ESP32-S3</strong>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <small class="text-muted d-block">Modem</small>
+                            <strong id="modemType">A7670E</strong>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <small class="text-muted d-block">Flash Size</small>
+                            <strong id="flashSize">16MB</strong>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <small class="text-muted d-block">PSRAM</small>
+                            <strong id="psram">8MB</strong>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-success mt-3" onclick="saveFirmwareSettings()">
+                        <i class="bi bi-check-lg me-2"></i>Save Firmware Settings
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- ==================== SYSTEM SETTINGS ==================== -->
     <div class="tab-pane fade" id="system" role="tabpanel">
         <div class="card">
@@ -369,6 +517,7 @@
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Device Name</label>
                             <input type="text" class="form-control" id="systemDeviceName" placeholder="ESP32-S3 Gateway">
+                            <small class="text-muted">Hostname: <span id="hostname"></span></small>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Timezone</label>
@@ -416,6 +565,28 @@
 
                     <hr>
 
+                    <h6 class="fw-bold mb-3">System Information</h6>
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <small class="text-muted d-block">Platform</small>
+                            <strong id="platform">---</strong>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <small class="text-muted d-block">Node Version</small>
+                            <strong id="nodeVersion">---</strong>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <small class="text-muted d-block">CPU Cores</small>
+                            <strong id="cpuCores">---</strong>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <small class="text-muted d-block">Memory Usage</small>
+                            <strong id="memoryUsage">---</strong>
+                        </div>
+                    </div>
+
+                    <hr>
+
                     <h6 class="fw-bold mb-3">System Actions</h6>
                     <div class="d-flex gap-2 flex-wrap">
                         <button type="button" class="btn btn-outline-primary" onclick="restartServer()">
@@ -427,31 +598,10 @@
                         <button type="button" class="btn btn-outline-secondary" onclick="downloadLogs()">
                             <i class="bi bi-download me-2"></i>Download Logs
                         </button>
+                        <button type="button" class="btn btn-outline-danger" onclick="clearLogs()">
+                            <i class="bi bi-trash me-2"></i>Clear Logs
+                        </button>
                     </div>
-
-                    <hr>
-
-                    <h6 class="fw-bold mb-3">User Management</h6>
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Username</th>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Role</th>
-                                    <th>Last Login</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="usersTableBody">
-                                <!-- Populated by JavaScript -->
-                            </tbody>
-                        </table>
-                    </div>
-                    <button type="button" class="btn btn-primary mt-2" onclick="addUser()">
-                        <i class="bi bi-person-plus me-2"></i>Add User
-                    </button>
 
                     <button type="button" class="btn btn-success mt-3 w-100" onclick="saveSystemSettings()">
                         <i class="bi bi-check-lg me-2"></i>Save System Settings
@@ -518,6 +668,10 @@
                                     <input type="email" class="form-control" id="notifyTo" placeholder="you@example.com">
                                 </div>
                             </div>
+
+                            <button type="button" class="btn btn-outline-primary" onclick="testEmail()">
+                                <i class="bi bi-send me-2"></i>Test Email
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -570,6 +724,32 @@
                             <button type="button" class="btn btn-outline-primary" onclick="testPushover()">
                                 <i class="bi bi-send me-2"></i>Test Pushover
                             </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Webhook Notifications -->
+                <h6 class="fw-bold mb-3">Webhook</h6>
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="notifyWebhookEnable">
+                            <label class="form-check-label fw-bold" for="notifyWebhookEnable">Enable Webhook</label>
+                        </div>
+
+                        <div id="webhookSettings" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">Webhook URL</label>
+                                <input type="url" class="form-control" id="webhookUrl" placeholder="https://example.com/webhook">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Method</label>
+                                <select class="form-select" id="webhookMethod">
+                                    <option value="POST">POST</option>
+                                    <option value="GET">GET</option>
+                                    <option value="PUT">PUT</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -651,6 +831,44 @@
             </div>
         </div>
     </div>
+
+    <!-- ==================== USERS TAB ==================== -->
+    <div class="tab-pane fade" id="users" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-people me-2"></i>User Management
+                </h5>
+                <button class="btn btn-primary btn-sm" onclick="addUser()">
+                    <i class="bi bi-person-plus"></i> Add User
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Last Login</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr>
+                                <td colspan="6" class="text-center py-3">
+                                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                    Loading users...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Add User Modal -->
@@ -671,7 +889,8 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Password</label>
-                        <input type="password" class="form-control" id="newPassword" required>
+                        <input type="password" class="form-control" id="newPassword" required minlength="6">
+                        <small class="text-muted">Minimum 6 characters</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Name</label>
@@ -698,6 +917,53 @@
     </div>
 </div>
 
+<!-- Edit User Modal -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil me-2"></i>Edit User
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editUserForm">
+                    <input type="hidden" id="editUserId">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Username</label>
+                        <input type="text" class="form-control" id="editUsername" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Name</label>
+                        <input type="text" class="form-control" id="editName">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Email</label>
+                        <input type="email" class="form-control" id="editEmail">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Role</label>
+                        <select class="form-select" id="editRole">
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">New Password (leave blank to keep current)</label>
+                        <input type="password" class="form-control" id="editPassword" minlength="6">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="deleteUserFromEdit()">Delete</button>
+                <button type="button" class="btn btn-primary" onclick="updateUser()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- View Logs Modal -->
 <div class="modal fade" id="logsModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -709,7 +975,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <pre id="logsContent" style="max-height: 500px; overflow-y: auto; background: #f8f9fa; padding: 1rem; border-radius: 0.25rem; font-size: 0.875rem;"></pre>
+                <pre id="logsContent" style="max-height: 500px; overflow-y: auto; background: #f8f9fa; padding: 1rem; border-radius: 0.25rem; font-size: 0.875rem; white-space: pre-wrap;"></pre>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -746,10 +1012,15 @@
     width: 100%;
 }
 
-#emailSettings, #telegramSettings, #pushoverSettings {
+#emailSettings, #telegramSettings, #pushoverSettings, #webhookSettings {
     padding-top: 1rem;
     border-top: 1px solid #dee2e6;
     margin-top: 1rem;
+}
+
+.status-indicator .spinner-grow {
+    width: 0.8rem;
+    height: 0.8rem;
 }
 
 @media (max-width: 767.98px) {
