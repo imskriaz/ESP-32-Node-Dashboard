@@ -221,7 +221,6 @@ function updateConnectionStatus(status) {
     const serverConnected = document.getElementById('serverConnected');
     const serverDisconnected = document.getElementById('serverDisconnected');
     const serverStatusText = document.getElementById('serverStatusText');
-    const serverStatusBadge = document.getElementById('serverStatusBadge');
     const loadingSkeleton = document.getElementById('loadingSkeleton');
     const metricsPanel = document.getElementById('metricsPanel');
     
@@ -233,10 +232,6 @@ function updateConnectionStatus(status) {
             serverConnected.style.display = 'none';
             serverDisconnected.style.display = 'none';
             if (serverStatusText) serverStatusText.textContent = 'Connecting...';
-            if (serverStatusBadge) {
-                serverStatusBadge.textContent = 'Connecting';
-                serverStatusBadge.className = 'badge bg-warning';
-            }
             if (loadingSkeleton) loadingSkeleton.style.display = 'block';
             if (metricsPanel) metricsPanel.style.display = 'none';
             break;
@@ -246,10 +241,6 @@ function updateConnectionStatus(status) {
             serverConnected.style.display = 'inline-block';
             serverDisconnected.style.display = 'none';
             if (serverStatusText) serverStatusText.textContent = 'Connected';
-            if (serverStatusBadge) {
-                serverStatusBadge.textContent = 'Server Online';
-                serverStatusBadge.className = 'badge bg-success';
-            }
             break;
             
         case 'server_disconnected':
@@ -257,10 +248,6 @@ function updateConnectionStatus(status) {
             serverConnected.style.display = 'none';
             serverDisconnected.style.display = 'inline-block';
             if (serverStatusText) serverStatusText.textContent = 'Disconnected';
-            if (serverStatusBadge) {
-                serverStatusBadge.textContent = 'Server Offline';
-                serverStatusBadge.className = 'badge bg-danger';
-            }
             if (loadingSkeleton) loadingSkeleton.style.display = 'none';
             if (metricsPanel) metricsPanel.style.display = 'none';
             break;
@@ -270,10 +257,6 @@ function updateConnectionStatus(status) {
             serverConnected.style.display = 'none';
             serverDisconnected.style.display = 'none';
             if (serverStatusText) serverStatusText.textContent = 'Reconnecting...';
-            if (serverStatusBadge) {
-                serverStatusBadge.textContent = 'Reconnecting';
-                serverStatusBadge.className = 'badge bg-warning';
-            }
             break;
     }
 }

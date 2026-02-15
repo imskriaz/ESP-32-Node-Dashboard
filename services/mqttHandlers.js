@@ -20,7 +20,7 @@ class MQTTHandlers {
         // Connection events
         this.mqttService.on('connect', () => {
             logger.info('✅ MQTT service connected');
-            
+
             // Subscribe to topics including storage
             this.mqttService.subscribe([
                 'device/+/status',
@@ -49,7 +49,7 @@ class MQTTHandlers {
 
             // Emit to all connected clients
             this.io.emit('mqtt:status', { connected: true });
-            
+
             // Request initial status from device
             setTimeout(() => {
                 this.mqttService.requestStatus('esp32-s3-1').catch(err => {
@@ -91,18 +91,18 @@ class MQTTHandlers {
         // Device heartbeats
         this.mqttService.on('heartbeat', (deviceId, data) => {
             this.modemService.handleHeartbeat(deviceId);
-            this.io.emit('device:heartbeat', { 
-                deviceId, 
-                timestamp: data.timestamp || new Date().toISOString() 
+            this.io.emit('device:heartbeat', {
+                deviceId,
+                timestamp: data.timestamp || new Date().toISOString()
             });
         });
 
         // Status updates
         this.mqttService.on('status', (deviceId, data) => {
             const device = this.modemService.updateDeviceStatus(deviceId, data);
-            
+
             // Emit status update
-            this.io.emit('device:status', { 
+            this.io.emit('device:status', {
                 deviceId,
                 online: true,
                 signal: data.mobile?.signalStrength || 0,
@@ -115,7 +115,7 @@ class MQTTHandlers {
                 uptime: data.system?.uptime || '0s',
                 timestamp: new Date().toISOString()
             });
-            
+
             logger.debug(`Device ${deviceId} status update`, {
                 signal: data.mobile?.signalStrength,
                 network: data.mobile?.networkType
@@ -124,33 +124,119 @@ class MQTTHandlers {
 
         // SMS handlers
         this.setupSMSHandlers();
-        
+
         // Call handlers
         this.setupCallHandlers();
-        
+
         // USSD handlers
         this.setupUSSDHandlers();
-        
+
         // Webcam handlers
         this.setupWebcamHandlers();
-        
+
         // WiFi handlers
         this.setupWiFiHandlers();
-        
+
         // Location handlers
         this.setupLocationHandlers();
-        
+
         // Command response handlers
         this.setupCommandHandlers();
-        
+
         // Storage handlers
         this.setupStorageHandlers();
+
+        this.setupGPSHandlers();
+
+        this.setupGPIOHandlers();
+
+        this.setupTestHandlers();
+    }
+
+    setupTestHandlers() {
+        this.mqttService.on('test:result', async (deviceId, data) => {
+            logger.info(`🧪 Test result from ${deviceId}: ${data.testId} = ${data.result}`);
+            
+            // Save to database
+            const db = this.app.locals.db;
+            if (db && data.runId) {
+                await db.run(`
+                    INSERT OR REPLACE INTO test_results 
+                    (run_id, device_id, test_id, test_name, status, result, duration, details, timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [
+                    data.runId,
+                    deviceId,
+                    data.testId,
+                    data.testName,
+                    data.status || 'completed',
+                    data.result,
+                    data.duration,
+                    JSON.stringify(data.details || {}),
+                    data.timestamp || new Date().toISOString()
+                ]);
+            }
+            
+            // Emit via Socket.IO
+            this.io.emit('test:result', { deviceId, ...data });
+        });
+
+        this.mqttService.on('test:progress', (deviceId, data) => {
+            this.io.emit('test:progress', { deviceId, ...data });
+        });
+    }
+
+    setupGPIOHandlers() {
+        this.mqttService.on('gpio:status', async (deviceId, data) => {
+            logger.info(`🔌 GPIO status from ${deviceId}: ${data.pins?.length || 0} pins`);
+
+            // Update modem service
+            if (this.modemService) {
+                this.modemService.updateDeviceStatus(deviceId, { gpio: data });
+            }
+
+            // Emit via Socket.IO
+            this.io.emit('gpio:status', { deviceId, ...data });
+        });
+
+        this.mqttService.on('gpio:update', async (deviceId, data) => {
+            logger.info(`⚡ GPIO update from ${deviceId}: pin ${data.pin} = ${data.value}`);
+
+            // Save to database
+            const db = this.app.locals.db;
+            if (db) {
+                await db.run(`
+                INSERT INTO gpio_history (device_id, pin, value, type, timestamp)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            `, [deviceId, data.pin, data.value, data.type || 'digital']);
+            }
+
+            // Emit via Socket.IO
+            this.io.emit('gpio:update', { deviceId, ...data });
+        });
+    }
+
+    setupGPSHandlers() {
+        this.mqttService.on('gps:location', async (deviceId, data) => {
+            logger.info(`📍 GPS location from ${deviceId}: ${data.lat || data.latitude}, ${data.lng || data.longitude}`);
+
+            // Import location handler
+            const locationHandler = require('../routes/location');
+            if (locationHandler && locationHandler.handleGpsLocation) {
+                locationHandler.handleGpsLocation(deviceId, data);
+            }
+        });
+
+        this.mqttService.on('gps:status', async (deviceId, data) => {
+            logger.info(`🛰️ GPS status from ${deviceId}: ${data.fix ? 'Fix' : 'No Fix'}, ${data.satellites || 0} sats`);
+            this.io.emit('gps:status', { deviceId, ...data });
+        });
     }
 
     setupSMSHandlers() {
         this.mqttService.on('sms:incoming', async (deviceId, data) => {
             logger.info(`📨 Incoming SMS from ${data.from}: ${data.message?.substring(0, 50)}...`);
-            
+
             try {
                 const db = this.app.locals.db;
                 if (db) {
@@ -158,16 +244,16 @@ class MQTTHandlers {
                         INSERT INTO sms (from_number, message, type, device_id, timestamp, read) 
                         VALUES (?, ?, 'incoming', ?, ?, 0)
                     `, [data.from, data.message, deviceId, data.timestamp || new Date().toISOString()]);
-                    
+
                     logger.info(`✅ Saved incoming SMS from ${data.from} (ID: ${result.lastID})`);
-                    
+
                     // Get updated unread count
                     const unread = await db.get(`
                         SELECT COUNT(*) as count FROM sms WHERE read = 0 AND type = 'incoming'
                     `);
-                    
-                    this.io.emit('sms:received', { 
-                        deviceId, 
+
+                    this.io.emit('sms:received', {
+                        deviceId,
                         ...data,
                         id: result.lastID,
                         unreadCount: unread.count
@@ -180,7 +266,7 @@ class MQTTHandlers {
 
         this.mqttService.on('sms:delivered', async (deviceId, data) => {
             logger.info(`✅ SMS delivered to ${data.to}`);
-            
+
             try {
                 const db = this.app.locals.db;
                 if (db) {
@@ -206,7 +292,7 @@ class MQTTHandlers {
 
         this.mqttService.on('call:status', async (deviceId, data) => {
             logger.info(`📞 Call status: ${data.status} for ${data.number}`);
-            
+
             try {
                 const db = this.app.locals.db;
                 if (db) {
@@ -227,7 +313,7 @@ class MQTTHandlers {
     setupUSSDHandlers() {
         this.mqttService.on('ussd:response', async (deviceId, data) => {
             logger.info(`💬 USSD response for ${data.code}: ${data.response?.substring(0, 50)}...`);
-            
+
             try {
                 const db = this.app.locals.db;
                 if (db) {
@@ -248,23 +334,23 @@ class MQTTHandlers {
     setupWebcamHandlers() {
         this.mqttService.on('webcam:image', async (deviceId, data) => {
             logger.info(`📸 Received image from webcam`);
-            
+
             try {
                 // Save image to file
                 const uploadDir = path.join(__dirname, '../public/uploads/webcam');
                 if (!fs.existsSync(uploadDir)) {
                     fs.mkdirSync(uploadDir, { recursive: true });
                 }
-                
+
                 const filename = `capture-${Date.now()}.jpg`;
                 const filepath = path.join(uploadDir, filename);
-                
+
                 // Decode base64 image
                 const imageBuffer = Buffer.from(data.image, 'base64');
                 fs.writeFileSync(filepath, imageBuffer);
-                
+
                 const imageUrl = `/uploads/webcam/${filename}`;
-                
+
                 // Save to database
                 const db = this.app.locals.db;
                 if (db) {
@@ -273,16 +359,16 @@ class MQTTHandlers {
                         VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'mqtt')
                     `, [filename, imageUrl, imageBuffer.length]);
                 }
-                
-                this.io.emit('webcam:capture', { 
-                    deviceId, 
+
+                this.io.emit('webcam:capture', {
+                    deviceId,
                     path: imageUrl,
                     timestamp: new Date().toISOString(),
                     size: imageBuffer.length
                 });
-                
+
                 logger.info(`✅ Image saved: ${filename} (${imageBuffer.length} bytes)`);
-                
+
             } catch (error) {
                 logger.error('❌ Error saving webcam image:', error);
             }
@@ -292,21 +378,21 @@ class MQTTHandlers {
     setupWiFiHandlers() {
         this.mqttService.on('wifi:scan', (deviceId, data) => {
             logger.info(`📡 WiFi scan results from ${deviceId}: ${data.networks?.length || 0} networks`);
-            
+
             if (this.modemService) {
                 this.modemService.updateWifiNetworks(deviceId, data.networks || []);
             }
-            
+
             this.io.emit('modem:wifi-scan', { deviceId, networks: data.networks || [] });
         });
 
         this.mqttService.on('hotspot:clients', (deviceId, data) => {
             logger.info(`📱 Hotspot clients from ${deviceId}: ${data.clients?.length || 0} connected`);
-            
+
             if (this.modemService) {
                 this.modemService.updateHotspotClients(deviceId, data.clients || []);
             }
-            
+
             this.io.emit('modem:hotspot-clients', { deviceId, clients: data.clients || [] });
         });
     }
@@ -329,7 +415,7 @@ class MQTTHandlers {
         // Handle storage list response
         this.mqttService.on('storage:list', (deviceId, data) => {
             logger.info(`📁 Storage list from ${deviceId}: ${data.files?.length || 0} files`);
-            
+
             // Update modemService with SD card info
             if (this.modemService && data.stats) {
                 this.modemService.updateDeviceStatus(deviceId, {
@@ -341,7 +427,7 @@ class MQTTHandlers {
                     }
                 });
             }
-            
+
             // Emit via Socket.IO
             if (this.io) {
                 this.io.emit('storage:list', { deviceId, ...data });
@@ -351,7 +437,7 @@ class MQTTHandlers {
         // Handle storage info response
         this.mqttService.on('storage:info', (deviceId, data) => {
             logger.info(`💾 Storage info from ${deviceId}: ${data.total ? Math.round(data.total / 1024 / 1024 / 1024) + 'GB' : 'Unknown'}`);
-            
+
             if (this.modemService) {
                 this.modemService.updateDeviceStatus(deviceId, {
                     sd: {
@@ -364,7 +450,7 @@ class MQTTHandlers {
                     }
                 });
             }
-            
+
             if (this.io) {
                 this.io.emit('storage:info', { deviceId, ...data });
             }
@@ -431,11 +517,11 @@ class MQTTHandlers {
         // Start periodic online status checker
         setInterval(() => {
             this.modemService.checkOnlineDevices();
-            
+
             // Get all devices and emit their status
             const devices = this.modemService.getAllDevices();
             this.io.emit('devices:status', devices);
-            
+
             // Cleanup old devices
             this.modemService.cleanupOfflineDevices();
         }, 30000); // Check every 30 seconds

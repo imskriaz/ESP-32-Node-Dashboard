@@ -27,9 +27,35 @@
         attachSearchAndFilter();
         attachTemplateButtons();
 
-        // Load contacts for quick pick
+        // Load contacts for contact selection modal
         loadContacts();
     }
+
+    // ==================== NEW FUNCTION - Open Contacts Modal ====================
+    /**
+     * Open contacts modal from compose modal
+     * This handles the proper modal stacking
+     */
+    window.openContactsModal = function() {
+        // Get the compose modal instance
+        const composeModal = bootstrap.Modal.getInstance(document.getElementById('composeSmsModal'));
+        
+        // Hide compose modal first
+        if (composeModal) {
+            composeModal.hide();
+        }
+        
+        // Small delay to allow first modal to hide
+        setTimeout(() => {
+            // Show contacts modal
+            const contactsModal = new bootstrap.Modal(document.getElementById('contactsModal'));
+            contactsModal.show();
+            
+            // Load contacts when modal is shown
+            loadFullContacts();
+        }, 300);
+    };
+    // ==================== END NEW FUNCTION ====================
 
     // Load contacts from API
     function loadContacts() {
@@ -39,7 +65,6 @@
                 if (data.success) {
                     contacts = data.data;
                     updateContactStats(data);
-                    displayQuickContacts();
                 }
             })
             .catch(error => console.error('Error loading contacts:', error));
@@ -52,37 +77,6 @@
 
         if (total) total.textContent = `Total: ${data.pagination.total}`;
         if (favorites) favorites.textContent = `Favorites: ${data.data.filter(c => c.favorite).length}`;
-    }
-
-    function displayQuickContacts() {
-        const container = document.getElementById('quickContacts');
-        if (!container) return;
-
-        if (!contacts || contacts.length === 0) {
-            container.innerHTML = '<p class="text-muted small">No contacts. Add some in Contacts page.</p>';
-            return;
-        }
-
-        let html = '';
-        contacts.slice(0, 5).forEach(contact => {
-            html += `
-            <div class="contact-card" onclick="selectContact('${contact.phone_number}', '${contact.name}')">
-                <div class="d-flex align-items-center gap-2">
-                    <div class="avatar-sm bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" 
-                         style="width: 32px; height: 32px;">
-                        ${contact.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div class="flex-grow-1">
-                        <div class="small fw-bold">${contact.name}</div>
-                        <div class="small text-muted">${contact.phone_number}</div>
-                    </div>
-                    <i class="bi bi-check2-circle text-success"></i>
-                </div>
-            </div>
-        `;
-        });
-
-        container.innerHTML = html;
     }
 
     // Attach delete button listeners
@@ -407,73 +401,60 @@
             sendBtn.addEventListener('click', handleSendSms);
         }
 
-        const pickContactBtn = document.getElementById('pickContactBtn');
-        if (pickContactBtn) {
-            pickContactBtn.addEventListener('click', function () {
-                const quickPick = document.getElementById('contactQuickPick');
-                quickPick.classList.toggle('d-none');
-                loadContactsForPick();
-            });
-        }
-
-        // Reset modal on close
-        const modal = document.getElementById('composeSmsModal');
-        if (modal) {
-            modal.addEventListener('hidden.bs.modal', function () {
+        // Reset compose modal on close
+        const composeModal = document.getElementById('composeSmsModal');
+        if (composeModal) {
+            composeModal.addEventListener('hidden.bs.modal', function () {
                 const form = document.getElementById('composeSmsForm');
                 if (form) form.reset();
                 const charCount = document.getElementById('modalCharCount');
                 if (charCount) charCount.textContent = '0';
-                document.getElementById('contactQuickPick')?.classList.add('d-none');
             });
         }
 
-        // Contacts modal
+        // Contacts modal - load contacts when shown
         const contactsModal = document.getElementById('contactsModal');
         if (contactsModal) {
-            contactsModal.addEventListener('show.bs.modal', loadFullContacts);
-        }
-    }
-
-    // Load contacts for quick pick
-    function loadContactsForPick() {
-        fetch('/api/contacts?limit=20')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    displayContactsForPick(data.data);
+            contactsModal.addEventListener('show.bs.modal', function() {
+                loadFullContacts();
+            });
+            
+            // When contacts modal is hidden, show compose modal again
+            contactsModal.addEventListener('hidden.bs.modal', function() {
+                // Only show compose modal if we came from there
+                if (document.getElementById('modalTo').value) {
+                    const composeModal = new bootstrap.Modal(document.getElementById('composeSmsModal'));
+                    composeModal.show();
                 }
-            })
-            .catch(console.error);
-    }
-
-    // Display contacts for quick pick
-    function displayContactsForPick(contacts) {
-        const container = document.getElementById('quickContacts');
-        if (!container) return;
-
-        if (contacts.length === 0) {
-            container.innerHTML = '<p class="text-muted">No contacts found</p>';
-            return;
+            });
         }
 
-        let html = '';
-        contacts.forEach(contact => {
-            html += `
-                <div class="contact-card" onclick="selectQuickContact('${contact.phone_number}', '${contact.name}')">
-                    <div class="text-center">
-                        <i class="bi bi-person-circle fs-4"></i>
-                        <div class="small fw-bold text-truncate">${contact.name}</div>
-                        <div class="small text-muted text-truncate">${contact.phone_number}</div>
-                    </div>
-                </div>
-            `;
-        });
-
-        container.innerHTML = html;
+        // Add Contact modal listeners
+        const saveBtn = document.getElementById('saveContactBtn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', saveContact);
+        }
+        
+        const deleteBtn = document.getElementById('deleteContactBtn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', function() {
+                const id = document.getElementById('contactId').value;
+                if (id) deleteContact(id);
+            });
+        }
+        
+        // Reset add contact modal on hide
+        const addContactModal = document.getElementById('addContactModal');
+        if (addContactModal) {
+            addContactModal.addEventListener('hidden.bs.modal', function() {
+                document.getElementById('contactForm').reset();
+                document.getElementById('contactId').value = '';
+                document.getElementById('deleteContactBtn').classList.add('d-none');
+            });
+        }
     }
 
-    // Load full contacts list
+    // Load full contacts list for selection
     function loadFullContacts() {
         const container = document.getElementById('contactsList');
         if (!container) return;
@@ -493,21 +474,32 @@
             });
     }
 
-    // Display full contacts list
+    // Display full contacts list for selection
     function displayFullContacts(contacts) {
         const container = document.getElementById('contactsList');
         if (!container) return;
 
         if (contacts.length === 0) {
-            container.innerHTML = '<div class="text-center py-4">No contacts found</div>';
+            container.innerHTML = '<div class="text-center py-4">No contacts found. <button class="btn btn-link" onclick="showAddContactModal()">Add one now</button></div>';
             return;
+        }
+
+        // Get unique companies for filter
+        const companies = [...new Set(contacts.filter(c => c.company).map(c => c.company))];
+        const companyFilter = document.getElementById('contactCompanyFilter');
+        if (companyFilter) {
+            let options = '<option value="">All Companies</option>';
+            companies.forEach(company => {
+                options += `<option value="${company}">${company}</option>`;
+            });
+            companyFilter.innerHTML = options;
         }
 
         let html = '';
         contacts.forEach(contact => {
             const favorite = contact.favorite ? '<i class="bi bi-star-fill text-warning ms-2"></i>' : '';
             html += `
-                <div class="list-group-item list-group-item-action" data-contact-id="${contact.id}">
+                <div class="list-group-item list-group-item-action" data-contact-id="${contact.id}" data-phone="${contact.phone_number}" data-name="${contact.name}" data-company="${contact.company || ''}">
                     <div class="d-flex align-items-center">
                         <div class="flex-shrink-0 me-3">
                             <div class="bg-light rounded-circle p-2">
@@ -524,10 +516,7 @@
                         </div>
                         <div class="btn-group btn-group-sm ms-2">
                             <button class="btn btn-outline-success" onclick="selectContact('${contact.phone_number}', '${contact.name}')">
-                                <i class="bi bi-check-lg"></i>
-                            </button>
-                            <button class="btn btn-outline-primary" onclick="editContact(${contact.id})">
-                                <i class="bi bi-pencil"></i>
+                                <i class="bi bi-check-lg"></i> Select
                             </button>
                         </div>
                     </div>
@@ -540,16 +529,18 @@
         // Add search functionality
         const searchInput = document.getElementById('contactSearch');
         if (searchInput) {
+            searchInput.removeEventListener('input', debounce(filterContacts, 300));
             searchInput.addEventListener('input', debounce(filterContacts, 300));
         }
 
-        const companyFilter = document.getElementById('contactCompanyFilter');
-        if (companyFilter) {
-            companyFilter.addEventListener('change', filterContacts);
+        const companyFilterEl = document.getElementById('contactCompanyFilter');
+        if (companyFilterEl) {
+            companyFilterEl.removeEventListener('change', filterContacts);
+            companyFilterEl.addEventListener('change', filterContacts);
         }
     }
 
-    // Filter contacts
+    // Filter contacts in modal
     function filterContacts() {
         const searchTerm = document.getElementById('contactSearch')?.value.toLowerCase() || '';
         const company = document.getElementById('contactCompanyFilter')?.value || '';
@@ -557,12 +548,9 @@
         document.querySelectorAll('#contactsList .list-group-item').forEach(item => {
             const name = item.querySelector('h6')?.textContent.toLowerCase() || '';
             const phone = item.querySelector('p')?.textContent.toLowerCase() || '';
-            const email = item.querySelector('small.text-muted:last-child')?.textContent.toLowerCase() || '';
-            const itemCompany = item.querySelector('small.text-muted:first-child')?.textContent || '';
-
-            const matchesSearch = name.includes(searchTerm) ||
-                phone.includes(searchTerm) ||
-                email.includes(searchTerm);
+            const itemCompany = item.dataset.company || '';
+            
+            const matchesSearch = name.includes(searchTerm) || phone.includes(searchTerm);
             const matchesCompany = !company || itemCompany === company;
 
             if (matchesSearch && matchesCompany) {
@@ -654,7 +642,7 @@
             },
             body: JSON.stringify({ to: to, message: message })
         })
-            .then(response => {
+            .then(async response => {
                 if (!response.ok) {
                     throw new Error('Network response was not ok');
                 }
@@ -811,26 +799,179 @@
         }
     }
 
+    // Select contact and close contacts modal
     function selectContact(phone, name) {
         document.getElementById('modalTo').value = phone;
 
-        // Close contacts modal if open
+        // Close contacts modal
         const contactsModal = bootstrap.Modal.getInstance(document.getElementById('contactsModal'));
         if (contactsModal) contactsModal.hide();
-
-        // Show compose modal
-        const composeModal = new bootstrap.Modal(document.getElementById('composeSmsModal'));
-        composeModal.show();
 
         showToast(`Selected: ${name}`, 'success');
     }
 
-    function loadContactsForQuickPick() {
-        fetch('/api/contacts?limit=20&favorites=true')
+    // Show add contact modal
+    function showAddContactModal() {
+        // Close contacts modal if open
+        const contactsModal = bootstrap.Modal.getInstance(document.getElementById('contactsModal'));
+        if (contactsModal) contactsModal.hide();
+
+        document.getElementById('contactModalTitle').textContent = 'Add New Contact';
+        document.getElementById('contactForm').reset();
+        document.getElementById('contactId').value = '';
+        document.getElementById('deleteContactBtn').classList.add('d-none');
+        
+        const modal = new bootstrap.Modal(document.getElementById('addContactModal'));
+        modal.show();
+    }
+
+    // Save contact
+    function saveContact() {
+        console.log('Saving contact...');
+        
+        // Get form values
+        const id = document.getElementById('contactId').value;
+        const name = document.getElementById('contactName').value.trim();
+        const phone = document.getElementById('contactPhone').value.trim();
+        const email = document.getElementById('contactEmail').value.trim();
+        const company = document.getElementById('contactCompany').value.trim();
+        const favorite = document.getElementById('contactFavorite').checked;
+        const notes = document.getElementById('contactNotes').value.trim();
+        
+        // Validate required fields
+        if (!name) {
+            showToast('Name is required', 'warning');
+            document.getElementById('contactName').classList.add('is-invalid');
+            return;
+        }
+        
+        if (!phone) {
+            showToast('Phone number is required', 'warning');
+            document.getElementById('contactPhone').classList.add('is-invalid');
+            return;
+        }
+        
+        // Remove invalid class
+        document.getElementById('contactName').classList.remove('is-invalid');
+        document.getElementById('contactPhone').classList.remove('is-invalid');
+        
+        // Prepare data
+        const data = {
+            name: name,
+            phone_number: phone,
+            email: email || null,
+            company: company || null,
+            favorite: favorite,
+            notes: notes || null
+        };
+        
+        const saveBtn = document.getElementById('saveContactBtn');
+        const originalText = saveBtn.innerHTML;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Saving...';
+        saveBtn.disabled = true;
+        
+        const url = id ? `/api/contacts/${id}` : '/api/contacts';
+        const method = id ? 'PUT' : 'POST';
+        
+        fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(async response => {
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || 'Server error');
+            }
+            return data;
+        })
+        .then(data => {
+            if (data.success) {
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addContactModal'));
+                if (modal) modal.hide();
+                
+                showToast(id ? 'Contact updated successfully!' : 'Contact created successfully!', 'success');
+                
+                // Reload contacts for the contacts modal
+                loadContacts();
+            } else {
+                showToast(data.message || 'Failed to save contact', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error saving contact:', error);
+            showToast('Error saving contact: ' + error.message, 'danger');
+        })
+        .finally(() => {
+            saveBtn.innerHTML = originalText;
+            saveBtn.disabled = false;
+        });
+    }
+
+    // Delete contact
+    function deleteContact(id) {
+        if (!id) {
+            id = document.getElementById('contactId').value;
+        }
+        
+        if (!id) return;
+        
+        if (!confirm('Are you sure you want to delete this contact?')) return;
+        
+        fetch(`/api/contacts/${id}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addContactModal'));
+                if (modal) modal.hide();
+                
+                showToast('Contact deleted successfully', 'success');
+                
+                // Reload contacts
+                loadContacts();
+            } else {
+                showToast(data.message || 'Failed to delete contact', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting contact:', error);
+            showToast('Error deleting contact', 'danger');
+        });
+    }
+
+    // Edit contact (called from contacts modal)
+    function editContact(id) {
+        fetch('/api/contacts/' + id)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    displayQuickContacts(data.data);
+                    const contact = data.data;
+                    
+                    // Close contacts modal
+                    const contactsModal = bootstrap.Modal.getInstance(document.getElementById('contactsModal'));
+                    if (contactsModal) contactsModal.hide();
+                    
+                    // Populate form
+                    document.getElementById('contactId').value = contact.id;
+                    document.getElementById('contactName').value = contact.name;
+                    document.getElementById('contactPhone').value = contact.phone_number;
+                    document.getElementById('contactEmail').value = contact.email || '';
+                    document.getElementById('contactCompany').value = contact.company || '';
+                    document.getElementById('contactFavorite').checked = contact.favorite === 1;
+                    document.getElementById('contactNotes').value = contact.notes || '';
+
+                    document.getElementById('contactModalTitle').textContent = 'Edit Contact';
+                    document.getElementById('deleteContactBtn').classList.remove('d-none');
+
+                    // Show add/edit modal
+                    const modal = new bootstrap.Modal(document.getElementById('addContactModal'));
+                    modal.show();
                 }
             })
             .catch(console.error);
@@ -929,38 +1070,12 @@
     window.markAllAsRead = markAllAsRead;
     window.deleteAllInbox = deleteAllInbox;
     window.deleteAllSent = deleteAllSent;
-    window.selectQuickContact = function (phone, name) {
-        document.getElementById('modalTo').value = phone;
-        document.getElementById('contactQuickPick').classList.add('d-none');
-        showToast(`Selected: ${name}`, 'success');
-    };
-    window.selectContact = function (phone, name) {
-        document.getElementById('modalTo').value = phone;
-        const modal = bootstrap.Modal.getInstance(document.getElementById('contactsModal'));
-        if (modal) modal.hide();
-        showToast(`Selected: ${name}`, 'success');
-    };
-    window.editContact = function (id) {
-        fetch('/api/contacts/' + id)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    const contact = data.data;
-                    document.getElementById('contactId').value = contact.id;
-                    document.getElementById('contactName').value = contact.name;
-                    document.getElementById('contactPhone').value = contact.phone_number;
-                    document.getElementById('contactEmail').value = contact.email || '';
-                    document.getElementById('contactCompany').value = contact.company || '';
-                    document.getElementById('contactFavorite').checked = contact.favorite === 1;
-                    document.getElementById('contactNotes').value = contact.notes || '';
+    window.selectContact = selectContact;
+    window.showAddContactModal = showAddContactModal;
+    window.editContact = editContact;
+    window.saveContact = saveContact;
+    window.deleteContact = deleteContact;
+    window.openContactsModal = openContactsModal; // Make sure this is exposed
 
-                    document.getElementById('contactModalTitle').textContent = 'Edit Contact';
-                    document.getElementById('deleteContactBtn').classList.remove('d-none');
-
-                    const modal = new bootstrap.Modal(document.getElementById('addContactModal'));
-                    modal.show();
-                }
-            })
-            .catch(console.error);
-    };
+    console.log('SMS.js initialized');
 })();

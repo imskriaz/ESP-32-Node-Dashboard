@@ -9,10 +9,10 @@
             <small class="text-muted">Test all ESP32-S3 features including individual IO pins</small>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-outline-primary" onclick="runAllTests()" title="Run all tests">
+            <button class="btn btn-sm btn-outline-primary" onclick="runAllTests()" id="runAllBtn" title="Run all tests">
                 <i class="bi bi-play-circle"></i> Run All
             </button>
-            <button class="btn btn-sm btn-outline-secondary" onclick="clearTestResults()" title="Clear results">
+            <button class="btn btn-sm btn-outline-secondary" onclick="clearTestResults()" id="clearResultsBtn" title="Clear results">
                 <i class="bi bi-eraser"></i> Clear
             </button>
             <span class="badge bg-success d-flex align-items-center" id="deviceTestStatus">
@@ -46,38 +46,30 @@
     <div class="row g-2 mb-3">
         <!-- Test Category Dropdown -->
         <div class="col-12 col-md-3">
-            <select class="form-select form-select-sm" id="testCategory" onchange="updateTestList()">
-                <option value="all">📋 All Tests</option>
-                <option value="communication">📱 Communication</option>
-                <option value="hardware">🔧 Hardware</option>
-                <option value="audio">🎵 Audio</option>
-                <option value="gpio">🔌 GPIO Pins</option>
-                <option value="sensors">📊 Sensors</option>
-                <option value="network">🌐 Network</option>
-                <option value="storage">💾 Storage</option>
-                <option value="power">⚡ Power</option>
+            <select class="form-select form-select-sm" id="testCategory">
+                <option value="">📋 Select Category</option>
+                <!-- Populated by JavaScript -->
             </select>
         </div>
 
         <!-- Specific Test Dropdown -->
         <div class="col-12 col-md-4">
             <select class="form-select form-select-sm" id="testSelector">
-                <!-- Populated by JavaScript -->
                 <option value="">Select a test to run...</option>
             </select>
         </div>
 
-        <!-- Test Parameters -->
-        <div class="col-12 col-md-3">
-            <input type="text" class="form-control form-control-sm" id="testParam" placeholder="Test parameters (optional)">
+        <!-- Test Parameters (dynamic) -->
+        <div class="col-12 col-md-3" id="testParameters">
+            <!-- Populated by JavaScript -->
         </div>
 
         <!-- Action Buttons -->
         <div class="col-12 col-md-2 d-flex gap-1">
-            <button class="btn btn-sm btn-primary flex-grow-1" onclick="runSelectedTest()">
+            <button class="btn btn-sm btn-primary flex-grow-1" id="runTestBtn">
                 <i class="bi bi-play-fill"></i> Run
             </button>
-            <button class="btn btn-sm btn-outline-secondary" onclick="stopCurrentTest()" title="Stop test">
+            <button class="btn btn-sm btn-outline-secondary" id="stopTestBtn" title="Stop test" disabled>
                 <i class="bi bi-stop-fill"></i>
             </button>
         </div>
@@ -88,269 +80,99 @@
         <div class="col-12">
             <div class="d-flex flex-wrap gap-1">
                 <span class="badge bg-primary" style="cursor: pointer;" onclick="quickTest('led')">💡 LED</span>
-                <span class="badge bg-success" style="cursor: pointer;" onclick="quickTest('mic')">🎤 Mic</span>
+                <span class="badge bg-success" style="cursor: pointer;" onclick="quickTest('microphone')">🎤 Mic</span>
                 <span class="badge bg-warning" style="cursor: pointer;" onclick="quickTest('speaker')">🔊 Speaker</span>
                 <span class="badge bg-info" style="cursor: pointer;" onclick="quickTest('camera')">📸 Camera</span>
                 <span class="badge bg-danger" style="cursor: pointer;" onclick="quickTest('gps')">🛰️ GPS</span>
-                <span class="badge bg-secondary" style="cursor: pointer;" onclick="quickTest('sd')">💾 SD</span>
+                <span class="badge bg-secondary" style="cursor: pointer;" onclick="quickTest('sdCard')">💾 SD</span>
                 <span class="badge bg-primary" style="cursor: pointer;" onclick="quickTest('wifi')">📶 WiFi</span>
-                <span class="badge bg-success" style="cursor: pointer;" onclick="quickTest('4g')">📡 4G</span>
-                <span class="badge bg-warning" style="cursor: pointer;" onclick="quickTest('buzzer')">🔔 Buzzer</span>
-                <span class="badge bg-info" style="cursor: pointer;" onclick="quickTest('button')">🔘 Button</span>
+                <span class="badge bg-success" style="cursor: pointer;" onclick="quickTest('modem')">📡 4G</span>
+                <span class="badge bg-warning" style="cursor: pointer;" onclick="quickTest('button')">🔘 Button</span>
+                <span class="badge bg-info" style="cursor: pointer;" onclick="quickTest('gpioLoopback')">🔄 Loopback</span>
+                <span class="badge bg-danger" style="cursor: pointer;" onclick="quickTest('battery')">🔋 Battery</span>
             </div>
         </div>
     </div>
 
-    <!-- Main Test Area - Compact Cards -->
-    <div class="row g-2">
-        <!-- GPIO Test Panel - Individual Pin Control -->
-        <div class="col-12 col-lg-6">
-            <div class="card">
-                <div class="card-header bg-warning text-dark py-1 px-2 d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0"><i class="bi bi-motherboard me-1"></i>GPIO Individual Pin Test</h6>
-                    <div>
-                        <button class="btn btn-sm btn-outline-primary py-0" onclick="scanAllPins()">
-                            <i class="bi bi-search"></i> Scan
-                        </button>
-                        <button class="btn btn-sm btn-outline-success py-0" onclick="testAllOutputs()">
-                            <i class="bi bi-play-circle"></i> Test All
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body p-2" style="max-height: 300px; overflow-y: auto;">
-                    <div class="gpio-grid" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px;">
-                        <!-- GPIO Pins 0-39 dynamically generated -->
-                        <% for(let i = 0; i < 20; i++) { %>
-                        <div class="gpio-pin p-1 border rounded text-center" id="gpio-<%= i %>" style="background: #f8f9fa;">
-                            <div class="small fw-bold">GPIO<%= i %></div>
-                            <div class="pin-led" id="gpio-led-<%= i %>" style="width: 16px; height: 16px; border-radius: 50%; margin: 2px auto; background: #ccc; transition: all 0.2s;"></div>
-                            <div class="btn-group btn-group-xs w-100">
-                                <button class="btn btn-xs btn-outline-success px-1" onclick="setPinHigh(<%= i %>)" title="Set HIGH">
-                                    <i class="bi bi-arrow-up-short"></i>
-                                </button>
-                                <button class="btn btn-xs btn-outline-danger px-1" onclick="setPinLow(<%= i %>)" title="Set LOW">
-                                    <i class="bi bi-arrow-down-short"></i>
-                                </button>
-                                <button class="btn btn-xs btn-outline-primary px-1" onclick="readPin(<%= i %>)" title="Read value">
-                                    <i class="bi bi-eye"></i>
-                                </button>
-                            </div>
-                            <select class="form-select form-select-xs mt-1" id="gpio-mode-<%= i %>" onchange="setPinMode(<%= i %>, this.value)" style="font-size: 10px;">
-                                <option value="in">IN</option>
-                                <option value="out">OUT</option>
-                                <option value="pullup">↑ PULLUP</option>
-                                <option value="pulldown">↓ PULLDOWN</option>
-                            </select>
-                            <small class="d-block text-truncate" id="gpio-value-<%= i %>" style="font-size: 9px;">---</small>
-                        </div>
-                        <% } %>
-                    </div>
-                </div>
-                <div class="card-footer py-1 px-2">
-                    <small class="text-muted" id="gpioStatus">Click any pin to test individually</small>
-                </div>
-            </div>
+    <!-- Current Test Status -->
+    <div class="card mb-3">
+        <div class="card-header bg-info text-white py-1 px-2">
+            <h6 class="mb-0"><i class="bi bi-activity me-1"></i>Live Test Status</h6>
         </div>
-
-        <!-- Audio & LED Test Panel -->
-        <div class="col-12 col-lg-6">
-            <div class="card mb-2">
-                <div class="card-header bg-success text-white py-1 px-2">
-                    <h6 class="mb-0"><i class="bi bi-mic me-1"></i>Audio & LED Individual Tests</h6>
+        <div class="card-body p-2">
+            <div class="row g-2 small">
+                <div class="col-6 col-md-3">
+                    <span class="text-muted">Current Test:</span>
+                    <span class="fw-bold ms-1" id="currentTestName">None</span>
                 </div>
-                <div class="card-body p-2">
-                    <div class="row g-1">
-                        <!-- LED Test Row -->
-                        <div class="col-12 mb-2">
-                            <label class="small fw-bold text-muted mb-1">LED Tests:</label>
-                            <div class="d-flex flex-wrap gap-1">
-                                <button class="btn btn-sm btn-outline-warning" onclick="testLED(2, 500)">
-                                    <i class="bi bi-led-on"></i> LED2 (500ms)
-                                </button>
-                                <button class="btn btn-sm btn-outline-warning" onclick="testLED(4, 1000)">
-                                    <i class="bi bi-led-on"></i> LED4 (1s)
-                                </button>
-                                <button class="btn btn-sm btn-outline-warning" onclick="testLED(5, 200)">
-                                    <i class="bi bi-led-on"></i> LED5 (200ms)
-                                </button>
-                                <button class="btn btn-sm btn-outline-warning" onclick="testLED(12, 300)">
-                                    <i class="bi bi-led-on"></i> LED12 (300ms)
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="testRGBLED()">
-                                    <i class="bi bi-palette"></i> RGB LED
-                                </button>
-                                <button class="btn btn-sm btn-outline-secondary" onclick="testAllLEDs()">
-                                    <i class="bi bi-stars"></i> All LEDs
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Microphone Test Row -->
-                        <div class="col-12 mb-2">
-                            <label class="small fw-bold text-muted mb-1">Microphone Tests:</label>
-                            <div class="d-flex flex-wrap gap-1">
-                                <button class="btn btn-sm btn-outline-success" onclick="testMicLevel()">
-                                    <i class="bi bi-mic"></i> Check Level
-                                </button>
-                                <button class="btn btn-sm btn-outline-success" onclick="testMicRecord(3)">
-                                    <i class="bi bi-record-circle"></i> Record 3s
-                                </button>
-                                <button class="btn btn-sm btn-outline-success" onclick="testMicRecord(5)">
-                                    <i class="bi bi-record-circle"></i> Record 5s
-                                </button>
-                                <button class="btn btn-sm btn-outline-success" onclick="testMicContinuous()">
-                                    <i class="bi bi-graph-up"></i> Continuous
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="stopMicTest()">
-                                    <i class="bi bi-stop-circle"></i> Stop
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Speaker Test Row -->
-                        <div class="col-12">
-                            <label class="small fw-bold text-muted mb-1">Speaker Tests:</label>
-                            <div class="d-flex flex-wrap gap-1">
-                                <button class="btn btn-sm btn-outline-warning" onclick="testTone(440, 1)">
-                                    <i class="bi bi-music-note"></i> 440Hz 1s
-                                </button>
-                                <button class="btn btn-sm btn-outline-warning" onclick="testTone(1000, 0.5)">
-                                    <i class="bi bi-music-note"></i> 1kHz 0.5s
-                                </button>
-                                <button class="btn btn-sm btn-outline-warning" onclick="testTone(2000, 0.3)">
-                                    <i class="bi bi-music-note"></i> 2kHz 0.3s
-                                </button>
-                                <button class="btn btn-sm btn-outline-warning" onclick="testSweep()">
-                                    <i class="bi bi-bar-chart"></i> Frequency Sweep
-                                </button>
-                                <button class="btn btn-sm btn-outline-warning" onclick="testPlayback()">
-                                    <i class="bi bi-play-circle"></i> Play Test
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="stopSpeaker()">
-                                    <i class="bi bi-stop-circle"></i> Stop
-                                </button>
-                            </div>
-                        </div>
+                <div class="col-6 col-md-3">
+                    <span class="text-muted">Status:</span>
+                    <span id="testStatus" class="ms-1"><span class="badge bg-secondary">Idle</span></span>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="progress" style="height: 20px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             id="testProgressBar" role="progressbar" style="width: 0%">0%</div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Current Test Status -->
-            <div class="card">
-                <div class="card-header bg-info text-white py-1 px-2">
-                    <h6 class="mb-0"><i class="bi bi-activity me-1"></i>Live Test Status</h6>
-                </div>
-                <div class="card-body p-2">
-                    <div class="row g-1 small">
-                        <div class="col-6">
-                            <span class="text-muted">Current Test:</span>
-                            <span class="fw-bold ms-1" id="currentTestName">None</span>
-                        </div>
-                        <div class="col-6">
-                            <span class="text-muted">Status:</span>
-                            <span class="badge bg-secondary ms-1" id="testStatus">Idle</span>
-                        </div>
-                        <div class="col-12 mt-1">
-                            <div class="progress" style="height: 4px;">
-                                <div class="progress-bar bg-success" id="testProgress" style="width: 0%"></div>
-                            </div>
-                        </div>
-                        <div class="col-12 mt-1" id="liveTestResult">
-                            <span class="text-muted">Ready for test</span>
-                        </div>
-                    </div>
+                <div class="col-12 mt-1" id="liveTestResult">
+                    <span class="text-muted">Ready for test</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Individual Component Test Results -->
-    <div class="row g-2 mt-2">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header bg-secondary text-white py-1 px-2 d-flex justify-content-between">
-                    <h6 class="mb-0"><i class="bi bi-clipboard-data me-1"></i>Detailed Test Results</h6>
-                    <span class="small" id="resultTimestamp"></span>
-                </div>
-                <div class="card-body p-2" style="max-height: 200px; overflow-y: auto;">
-                    <div id="detailedResults" class="small">
-                        <div class="text-muted">No tests run yet. Select a test from dropdown and click Run.</div>
-                    </div>
-                </div>
+    <!-- Detailed Test Results -->
+    <div class="card">
+        <div class="card-header bg-secondary text-white py-1 px-2 d-flex justify-content-between">
+            <h6 class="mb-0"><i class="bi bi-clipboard-data me-1"></i>Test Results</h6>
+            <span class="small" id="resultTimestamp"></span>
+        </div>
+        <div class="card-body p-2" style="max-height: 300px; overflow-y: auto;">
+            <div id="detailedResults" class="small">
+                <div class="text-muted">No tests run yet. Select a test from dropdown and click Run.</div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Test Templates (Hidden) -->
-<div style="display: none;">
-    <div id="test-template-success" class="test-result success small mb-1 p-1 border-start border-3 border-success">
-        <i class="bi bi-check-circle-fill text-success me-1"></i>
-        <span class="test-message"></span>
-        <span class="test-time text-muted float-end"></span>
-    </div>
-    <div id="test-template-fail" class="test-result fail small mb-1 p-1 border-start border-3 border-danger">
-        <i class="bi bi-exclamation-triangle-fill text-danger me-1"></i>
-        <span class="test-message"></span>
-        <span class="test-time text-muted float-end"></span>
-    </div>
-    <div id="test-template-info" class="test-result info small mb-1 p-1 border-start border-3 border-info">
-        <i class="bi bi-info-circle-fill text-info me-1"></i>
-        <span class="test-message"></span>
-        <span class="test-time text-muted float-end"></span>
+<!-- Test Details Modal -->
+<div class="modal fade" id="testDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-file-text me-2"></i>Test Details: <span id="detailsTestName"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <span class="text-muted">Time:</span>
+                    <span id="detailsTimestamp" class="ms-2"></span>
+                </div>
+                <div class="mb-2">
+                    <span class="text-muted">Result:</span>
+                    <span id="detailsResult" class="ms-2"></span>
+                </div>
+                <hr>
+                <pre id="detailsContent" class="bg-light p-2 rounded" style="max-height: 400px; overflow-y: auto;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="exportTestLog()">
+                    <i class="bi bi-download"></i> Export
+                </button>
+            </div>
+        </div>
     </div>
 </div>
+
+<!-- Load Test Script -->
+<script src="/js/test.js"></script>
 
 <style>
-/* Compact Test UI Styles */
-.btn-xs {
-    padding: 0.1rem 0.3rem;
-    font-size: 0.7rem;
-    line-height: 1.2;
-}
-
-.form-select-xs {
-    padding-top: 0.1rem;
-    padding-bottom: 0.1rem;
-    font-size: 0.7rem;
-}
-
-.gpio-pin {
-    transition: all 0.2s;
-    cursor: pointer;
-    background: white;
-}
-
-.gpio-pin:hover {
-    background: #e9ecef;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.pin-led {
-    box-shadow: 0 0 3px rgba(0,0,0,0.3);
-}
-
-.pin-led.high {
-    background: #28a745 !important;
-    box-shadow: 0 0 8px #28a745;
-}
-
-.pin-led.low {
-    background: #dc3545 !important;
-    box-shadow: 0 0 8px #dc3545;
-}
-
-.pin-led.pwm {
-    animation: pulse 1s infinite;
-}
-
-@keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.3; }
-    100% { opacity: 1; }
-}
-
+/* Console Styles */
 .console-line {
     border-bottom: 1px solid #333;
     font-family: 'Consolas', monospace;
@@ -365,8 +187,21 @@
     overflow: visible;
 }
 
+/* Test Result Styles */
 .test-result {
-    border-left-width: 3px !important;
+    transition: all 0.2s;
+}
+
+.test-result:hover {
+    background: #f8f9fa;
+}
+
+.test-result.pass {
+    border-left-color: #198754 !important;
+}
+
+.test-result.fail {
+    border-left-color: #dc3545 !important;
 }
 
 /* Quick test badges */
@@ -374,6 +209,7 @@
     cursor: pointer;
     transition: all 0.2s;
     padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
 }
 
 .badge:hover {
@@ -381,18 +217,20 @@
     filter: brightness(1.1);
 }
 
+/* Progress bar animation */
+.progress-bar-animated {
+    animation: progress-bar-stripes 1s linear infinite;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
-    .gpio-grid {
-        grid-template-columns: repeat(4, 1fr) !important;
+    .badge {
+        padding: 0.3rem 0.4rem;
+        font-size: 0.7rem;
     }
     
-    .btn-sm {
-        padding: 0.2rem 0.3rem;
-        font-size: 0.7rem;
+    #testConsole {
+        max-height: 100px;
     }
 }
 </style>
-
-<!-- Load Test Script -->
-<script src="/js/test.js"></script>

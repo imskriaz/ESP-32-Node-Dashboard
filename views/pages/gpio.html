@@ -1,0 +1,485 @@
+<!-- GPIO Control Page -->
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-2">
+    <div>
+        <h2 class="mb-1 fs-4">
+            <i class="bi bi-motherboard me-2 text-primary"></i>GPIO Control
+        </h2>
+        <p class="text-muted small mb-0">Configure and control all 40 GPIO pins</p>
+    </div>
+    <div class="d-flex gap-2">
+        <span id="deviceStatus" class="badge bg-secondary d-flex align-items-center px-3 py-2">
+            <span class="spinner-grow spinner-grow-sm me-2"></span>Checking...
+        </span>
+        <button class="btn btn-sm btn-outline-primary" onclick="refreshGPIO()" id="refreshGPIO">
+            <i class="bi bi-arrow-repeat"></i>
+        </button>
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="bi bi-tools"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="#" onclick="exportConfig()"><i class="bi bi-download me-2"></i>Export Config</a></li>
+                <li><a class="dropdown-item" href="#" onclick="importConfig()"><i class="bi bi-upload me-2"></i>Import Config</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#groupModal"><i class="bi bi-diagram-3 me-2"></i>New Group</a></li>
+                <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#ruleModal"><i class="bi bi-robot me-2"></i>New Rule</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="row g-2 mb-3">
+    <div class="col-3 col-md-3">
+        <div class="border rounded p-2 text-center bg-light">
+            <small class="text-muted d-block">Total</small>
+            <strong id="totalPins" class="fs-6">40</strong>
+        </div>
+    </div>
+    <div class="col-3 col-md-3">
+        <div class="border rounded p-2 text-center bg-light">
+            <small class="text-muted d-block">Outputs</small>
+            <strong id="outputPins" class="fs-6">0</strong>
+        </div>
+    </div>
+    <div class="col-3 col-md-3">
+        <div class="border rounded p-2 text-center bg-light">
+            <small class="text-muted d-block">Inputs</small>
+            <strong id="inputPins" class="fs-6">0</strong>
+        </div>
+    </div>
+    <div class="col-3 col-md-3">
+        <div class="border rounded p-2 text-center bg-light">
+            <small class="text-muted d-block">Active</small>
+            <strong id="activePins" class="fs-6">0</strong>
+        </div>
+    </div>
+</div>
+
+<!-- Selection Toolbar (hidden by default) -->
+<div id="selectionToolbar" class="alert alert-primary py-2 mb-3 d-none align-items-center">
+    <span class="me-3"><strong id="selectedCount">0</strong> pins selected</span>
+    <div class="btn-group btn-group-sm">
+        <button class="btn btn-sm btn-outline-success" onclick="setSelectedHigh()" title="Set HIGH">
+            <i class="bi bi-arrow-up-short"></i> HIGH
+        </button>
+        <button class="btn btn-sm btn-outline-danger" onclick="setSelectedLow()" title="Set LOW">
+            <i class="bi bi-arrow-down-short"></i> LOW
+        </button>
+        <button class="btn btn-sm btn-outline-warning" onclick="setSelectedPwm()" title="Set PWM">
+            <i class="bi bi-sliders"></i> PWM
+        </button>
+        <button class="btn btn-sm btn-outline-info" onclick="toggleSelectedMode()" title="Change Mode">
+            <i class="bi bi-arrow-repeat"></i> Mode
+        </button>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="clearSelection()">
+        <i class="bi bi-x-lg"></i>
+    </button>
+</div>
+
+<!-- Main Content - Two Column Layout -->
+<div class="row g-3">
+    <!-- Left Column - Pin Grid -->
+    <div class="col-12 col-lg-9">
+        <div class="card">
+            <div class="card-header bg-white py-2 px-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="bi bi-grid-3x3-gap-fill me-2"></i>Pin Grid</h6>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-sm btn-outline-primary" onclick="selectAllPins()">
+                            <i class="bi bi-check-all"></i> All
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
+                            <i class="bi bi-x"></i> Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-2">
+                <div class="row g-2" id="pinsGrid">
+                    <!-- Populated by JavaScript -->
+                    <div class="col-12 text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column - Tools -->
+    <div class="col-12 col-lg-3">
+        <!-- Quick Actions -->
+        <div class="card mb-3">
+            <div class="card-header bg-white py-2 px-3">
+                <h6 class="mb-0"><i class="bi bi-lightning-charge me-2"></i>Quick Actions</h6>
+            </div>
+            <div class="card-body p-2">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-sm btn-outline-success" onclick="writePin(2, 1)">
+                        <i class="bi bi-led-on"></i> Test LED (GPIO2)
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning" onclick="writePin(4, 128, 'pwm')">
+                        <i class="bi bi-sliders"></i> PWM 50% (GPIO4)
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" onclick="readPin(5)">
+                        <i class="bi bi-arrow-right-circle"></i> Read Button (GPIO5)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Groups -->
+        <div class="card mb-3">
+            <div class="card-header bg-white py-2 px-3 d-flex justify-content-between">
+                <h6 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Groups</h6>
+                <button class="btn btn-sm btn-link p-0" data-bs-toggle="modal" data-bs-target="#groupModal">
+                    <i class="bi bi-plus"></i>
+                </button>
+            </div>
+            <div class="card-body p-2" id="groupList" style="max-height: 150px; overflow-y: auto;">
+                <div class="text-muted small text-center py-2">No groups created</div>
+            </div>
+        </div>
+
+        <!-- Rules -->
+        <div class="card">
+            <div class="card-header bg-white py-2 px-3 d-flex justify-content-between">
+                <h6 class="mb-0"><i class="bi bi-robot me-2"></i>Rules</h6>
+                <button class="btn btn-sm btn-link p-0" data-bs-toggle="modal" data-bs-target="#ruleModal">
+                    <i class="bi bi-plus"></i>
+                </button>
+            </div>
+            <div class="card-body p-2" id="rulesList" style="max-height: 150px; overflow-y: auto;">
+                <div class="text-muted small text-center py-2">No rules created</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== MODALS ==================== -->
+
+<!-- Pin Configuration Modal -->
+<div class="modal fade" id="pinModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white py-2">
+                <h5 class="modal-title fs-6">
+                    <i class="bi bi-pin me-2"></i>Configure GPIO<span id="modalPinNumber"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="row g-2">
+                    <!-- Left Column - Controls -->
+                    <div class="col-md-7">
+                        <div class="mb-2">
+                            <label class="form-label small">Pin Name</label>
+                            <input type="text" class="form-control form-control-sm" id="modalPinName">
+                        </div>
+                        
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label small">Mode</label>
+                                <select class="form-select form-select-sm" id="modalPinMode">
+                                    <option value="input">Input</option>
+                                    <option value="input_pullup">Input with Pull-up</option>
+                                    <option value="input_pulldown">Input with Pull-down</option>
+                                    <option value="output">Output (Digital)</option>
+                                    <option value="output_open_drain">Output (Open Drain)</option>
+                                    <option value="pwm">PWM Output</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small">Pull Resistor</label>
+                                <select class="form-select form-select-sm" id="modalPinPull">
+                                    <option value="none">None</option>
+                                    <option value="up">Pull-up</option>
+                                    <option value="down">Pull-down</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Digital Output Control -->
+                        <div id="digitalControl" class="mb-2">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="modalPinValue">
+                                <label class="form-check-label small" for="modalPinValue">Set HIGH</label>
+                            </div>
+                        </div>
+
+                        <!-- PWM Control -->
+                        <div id="pwmControl" class="mb-2" style="display: none;">
+                            <label class="form-label small">PWM Value (0-255)</label>
+                            <input type="range" class="form-range" id="modalPwmValue" min="0" max="255" value="0">
+                            <div class="d-flex justify-content-between small">
+                                <span>0%</span>
+                                <span id="pwmPercent">0%</span>
+                                <span>100%</span>
+                            </div>
+                            <div class="mt-1">
+                                <label class="form-label small">Frequency (Hz)</label>
+                                <input type="number" class="form-control form-control-sm" id="modalPinFrequency" value="1000" min="1" max="40000">
+                            </div>
+                        </div>
+
+                        <!-- Timer -->
+                        <div class="mb-2">
+                            <label class="form-label small">Auto-reset after (seconds, 0 = disabled)</label>
+                            <input type="number" class="form-control form-control-sm" id="modalPinDuration" value="0" min="0" max="3600">
+                        </div>
+                    </div>
+
+                    <!-- Right Column - Status & Capabilities -->
+                    <div class="col-md-5">
+                        <div class="border rounded p-2 mb-2 bg-light">
+                            <small class="text-muted d-block">Capabilities</small>
+                            <div id="modalCapabilities" class="mt-1"></div>
+                        </div>
+
+                        <div class="border rounded p-2 mb-2">
+                            <small class="text-muted d-block">Current Value</small>
+                            <div class="d-flex align-items-center mt-1">
+                                <span class="badge bg-primary me-2" id="modalCurrentValue">0</span>
+                                <button class="btn btn-sm btn-outline-primary ms-auto" id="readPinNow">
+                                    <i class="bi bi-arrow-repeat"></i> Read
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="border rounded p-2">
+                            <small class="text-muted d-block">Pin History</small>
+                            <div id="pinHistory" style="max-height: 100px; overflow-y: auto;" class="mt-1">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Conversion Panel (for analog inputs) -->
+                <div id="conversionPanel" class="mt-2 border-top pt-2" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="fw-bold">Conversions</small>
+                        <div class="input-group input-group-sm" style="width: 200px;">
+                            <input type="text" class="form-control form-control-sm" id="formulaInput" placeholder="Custom formula (e.g., val*2)">
+                            <button class="btn btn-sm btn-outline-primary" id="calculateBtn">
+                                <i class="bi bi-calculator"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="conversionResults" class="small">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="savePinBtn">
+                    <i class="bi bi-check-lg"></i> Apply
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Group Modal -->
+<div class="modal fade" id="groupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white py-2">
+                <h5 class="modal-title fs-6"><i class="bi bi-diagram-3 me-2"></i>Create Pin Group</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="mb-2">
+                    <label class="form-label small">Group Name</label>
+                    <input type="text" class="form-control form-control-sm" id="groupName" placeholder="e.g., LEDs, Sensors">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Pin Numbers (comma-separated)</label>
+                    <input type="text" class="form-control form-control-sm" id="groupPins" placeholder="2,4,5,12">
+                </div>
+                <small class="text-muted">Example: 2,4,5 for GPIO2, GPIO4, GPIO5</small>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-success" id="saveGroupBtn">Create Group</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rule Modal -->
+<div class="modal fade" id="ruleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark py-2">
+                <h5 class="modal-title fs-6"><i class="bi bi-robot me-2"></i>Create Automation Rule</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="mb-2">
+                    <label class="form-label small">Rule Name</label>
+                    <input type="text" class="form-control form-control-sm" id="ruleName" placeholder="e.g., Light ON at dark">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Condition</label>
+                    <input type="text" class="form-control form-control-sm" id="conditionInput" 
+                           placeholder="pin5 > 2000 & pin6 == 1">
+                    <small class="text-muted">Use pin0-pin39 as variables. Examples:</small>
+                    <ul class="small text-muted mt-1 mb-0 ps-3">
+                        <li><code>pin2 == 1</code> - When GPIO2 is HIGH</li>
+                        <li><code>pin4 > 2000</code> - Analog value > 2000</li>
+                        <li><code>pin5 == 0 & pin6 == 1</code> - AND condition</li>
+                    </ul>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Action (JSON)</label>
+                    <textarea class="form-control form-control-sm" id="ruleAction" rows="2" 
+                              placeholder='{"pin": 2, "value": 1}'></textarea>
+                    <small class="text-muted">Example: {"pin": 2, "value": 1}</small>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-info flex-fill" id="testConditionBtn">
+                        <i class="bi bi-play"></i> Test
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-warning" id="saveRuleBtn">Create Rule</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Load GPIO script -->
+<script src="/js/gpio.js"></script>
+
+<style>
+/* Pin Card Styles */
+.pin-card {
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 8px 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: white;
+    position: relative;
+    user-select: none;
+}
+
+.pin-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    border-color: #0d6efd;
+}
+
+.pin-card.selected {
+    border: 2px solid #0d6efd;
+    background: #e7f1ff;
+}
+
+.pin-header {
+    margin-bottom: 4px;
+}
+
+.pin-number {
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.pin-body {
+    position: relative;
+}
+
+.pin-led {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #6c757d;
+    transition: all 0.2s;
+}
+
+.pin-led.active {
+    background: #198754 !important;
+    box-shadow: 0 0 15px #198754;
+    animation: pulse 2s infinite;
+}
+
+.pin-led.output.active {
+    background: #198754 !important;
+}
+
+.pin-led.input.active {
+    background: #ffc107 !important;
+    box-shadow: 0 0 15px #ffc107;
+}
+
+.pin-led i {
+    color: white;
+    font-size: 1.2rem;
+}
+
+.pin-value {
+    font-size: 0.7rem;
+    margin-top: 4px;
+}
+
+.pin-footer {
+    font-size: 0.65rem;
+    margin-top: 4px;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7); }
+    70% { box-shadow: 0 0 0 6px rgba(25, 135, 84, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(25, 135, 84, 0); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .pin-led {
+        width: 30px;
+        height: 30px;
+    }
+    
+    .pin-led i {
+        font-size: 0.9rem;
+    }
+    
+    .pin-number {
+        font-size: 0.7rem;
+    }
+}
+
+/* Custom scrollbar */
+#groupList::-webkit-scrollbar,
+#rulesList::-webkit-scrollbar,
+#pinHistory::-webkit-scrollbar {
+    width: 4px;
+}
+
+#groupList::-webkit-scrollbar-track,
+#rulesList::-webkit-scrollbar-track,
+#pinHistory::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+#groupList::-webkit-scrollbar-thumb,
+#rulesList::-webkit-scrollbar-thumb,
+#pinHistory::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 2px;
+}
+
+#groupList::-webkit-scrollbar-thumb:hover,
+#rulesList::-webkit-scrollbar-thumb:hover,
+#pinHistory::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+</style>

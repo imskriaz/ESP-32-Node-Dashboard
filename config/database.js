@@ -310,7 +310,130 @@ async function initializeDatabase() {
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
         `);
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS gps_locations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_id TEXT NOT NULL,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                altitude REAL,
+                speed REAL,
+                heading REAL,
+                satellites INTEGER,
+                accuracy REAL,
+                fix_quality INTEGER,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                address TEXT,
+                tags TEXT
+            )
+        `);
 
+
+        // Create GPIO configuration table
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS gpio_config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_id TEXT NOT NULL,
+                pin INTEGER NOT NULL,
+                name TEXT,
+                mode TEXT DEFAULT 'input',
+                pull TEXT DEFAULT 'none',
+                frequency INTEGER DEFAULT 1000,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(device_id, pin)
+            )
+        `);
+
+        // Create GPIO history table
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS gpio_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_id TEXT NOT NULL,
+                pin INTEGER NOT NULL,
+                value INTEGER NOT NULL,
+                type TEXT DEFAULT 'digital',
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Create GPIO groups table
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS gpio_groups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                pins TEXT NOT NULL, -- JSON array
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Create GPIO rules table
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS gpio_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                condition TEXT NOT NULL,
+                action TEXT NOT NULL, -- JSON
+                enabled BOOLEAN DEFAULT 1,
+                trigger_count INTEGER DEFAULT 0,
+                last_triggered DATETIME,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Create indexes
+        await db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_gpio_history_device ON gpio_history(device_id, pin, timestamp);
+            CREATE INDEX IF NOT EXISTS idx_gpio_config_device ON gpio_config(device_id, pin);
+        `);
+
+        // Create test results table
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS test_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_id TEXT NOT NULL,
+                run_id TEXT NOT NULL UNIQUE,
+                test_id TEXT NOT NULL,
+                test_name TEXT NOT NULL,
+                status TEXT DEFAULT 'completed',
+                result TEXT, -- 'pass' or 'fail'
+                duration REAL,
+                details TEXT, -- JSON
+                error TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Create test steps table
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS test_steps (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                test_run_id TEXT NOT NULL,
+                step_name TEXT NOT NULL,
+                step_number INTEGER,
+                success BOOLEAN,
+                message TEXT,
+                duration REAL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (test_run_id) REFERENCES test_results(run_id)
+            )
+        `);
+
+        // Create indexes
+        await db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_test_results_device ON test_results(device_id, timestamp);
+            CREATE INDEX IF NOT EXISTS idx_test_results_run ON test_results(run_id);
+        `);
+
+        // Create indexes for GPS table
+        await db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_gps_device ON gps_locations(device_id);
+            CREATE INDEX IF NOT EXISTS idx_gps_timestamp ON gps_locations(timestamp);
+            CREATE INDEX IF NOT EXISTS idx_gps_device_time ON gps_locations(device_id, timestamp);
+        `);
         // Check if admin user exists
         const adminUser = await db.get('SELECT * FROM users WHERE username = ?', [process.env.ADMIN_USERNAME || 'admin']);
         if (!adminUser) {
@@ -553,7 +676,7 @@ async function vacuumDatabase(db) {
     }
 }
 
-module.exports = { 
+module.exports = {
     initializeDatabase,
     backupDatabase,
     restoreDatabase,

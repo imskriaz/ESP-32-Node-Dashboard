@@ -391,23 +391,18 @@
                             <span class="input-group-text">+88</span>
                             <input type="tel" class="form-control" id="modalTo" name="to" 
                                    placeholder="1712345678" required>
-                            <button class="btn btn-outline-primary" type="button" id="pickContactBtn">
+                            <!-- FIX: Remove data-bs-toggle and use onclick instead -->
+                            <button class="btn btn-outline-primary" type="button" id="pickContactBtn" onclick="openContactsModal()">
                                 <i class="bi bi-person-lines-fill"></i> Contacts
                             </button>
                         </div>
                         <div class="form-text">
                             <i class="bi bi-info-circle me-1"></i>
-                            Enter 10-digit number or select from contacts
+                            Enter 10-digit number or click Contacts to select from list
                         </div>
                     </div>
 
-                    <!-- Contact quick pick (hidden by default) -->
-                    <div class="mb-3 d-none" id="contactQuickPick">
-                        <label class="form-label fw-bold">Quick Select</label>
-                        <div class="contact-grid" id="quickContacts">
-                            <!-- Will be populated by JavaScript -->
-                        </div>
-                    </div>
+                    <!-- REMOVED: Contact quick pick section -->
                     
                     <div class="mb-3">
                         <label class="form-label fw-bold">Message</label>

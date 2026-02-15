@@ -1,6 +1,6 @@
 # ESP32-S3 Manager Dashboard
 
-Complete IoT management dashboard for Waveshare ESP32-S3 A7670E 4G board with Robi SIM.
+Complete IoT management dashboard for ESP32-S3 A7670E 4G board with Robi SIM.
 
 ## Features
 

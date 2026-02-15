@@ -1,4 +1,4 @@
-// Settings Management
+// Settings Management (Cleaned Version)
 (function () {
     'use strict';
 
@@ -42,7 +42,7 @@
             });
     }
 
-    // Populate all settings forms
+    // Populate settings forms
     function populateSettings(settings) {
         // MQTT Settings
         if (settings.mqtt) {
@@ -56,7 +56,6 @@
             if (mqttHost) mqttHost.value = settings.mqtt.host || 'device.atebd.com';
             if (mqttPort) mqttPort.value = settings.mqtt.port || 1883;
             if (mqttUsername) mqttUsername.value = settings.mqtt.username || '';
-            if (mqttPassword) mqttPassword.value = settings.mqtt.password || '';
             if (mqttClientId) mqttClientId.value = settings.mqtt.clientId || 'esp32-dashboard';
 
             if (statusEl) {
@@ -68,123 +67,6 @@
                     statusEl.className = 'badge bg-danger';
                 }
             }
-        }
-
-        // Modem Settings
-        if (settings.modem) {
-            const modemApn = document.getElementById('modemApn');
-            const modemApnUser = document.getElementById('modemApnUser');
-            const modemApnPass = document.getElementById('modemApnPass');
-            const modemAuth = document.getElementById('modemAuth');
-            const modemNetworkMode = document.getElementById('modemNetworkMode');
-            const modemPreferredNetwork = document.getElementById('modemPreferredNetwork');
-            const modemAutoConnect = document.getElementById('modemAutoConnect');
-            const modemPinCode = document.getElementById('modemPinCode');
-            const modemBand = document.getElementById('modemBand');
-            const modemRoaming = document.getElementById('modemRoaming');
-            const dataLimit = document.getElementById('dataLimit');
-            const dataWarning = document.getElementById('dataWarning');
-            const dataResetDay = document.getElementById('dataResetDay');
-
-            if (modemApn) modemApn.value = settings.modem.apn || 'internet';
-            if (modemApnUser) modemApnUser.value = settings.modem.apnUser || '';
-            if (modemApnPass) modemApnPass.value = settings.modem.apnPass || '';
-            if (modemAuth) modemAuth.value = settings.modem.auth || 'none';
-            if (modemNetworkMode) modemNetworkMode.value = settings.modem.networkMode || 'auto';
-            if (modemPreferredNetwork) modemPreferredNetwork.value = settings.modem.preferredNetwork || 'AUTO';
-            if (modemAutoConnect) modemAutoConnect.checked = settings.modem.autoConnect !== false;
-            if (modemPinCode) modemPinCode.value = settings.modem.pinCode || '';
-            if (modemBand) modemBand.value = settings.modem.band || 'ALL';
-            if (modemRoaming) modemRoaming.checked = settings.modem.roaming || false;
-
-            if (settings.modem.dataUsage) {
-                if (dataLimit) dataLimit.value = settings.modem.dataUsage.limit || 0;
-                if (dataWarning) dataWarning.value = settings.modem.dataUsage.warning || 80;
-                if (dataResetDay) dataResetDay.value = settings.modem.dataUsage.resetDay || 1;
-            }
-        }
-
-        // Webcam Settings
-        if (settings.webcam) {
-            const webcamEnabled = document.getElementById('webcamEnabled');
-            const webcamResolution = document.getElementById('webcamResolution');
-            const webcamFps = document.getElementById('webcamFps');
-            const webcamFpsValue = document.getElementById('webcamFpsValue');
-            const webcamQuality = document.getElementById('webcamQuality');
-            const webcamQualityValue = document.getElementById('webcamQualityValue');
-            const webcamBrightness = document.getElementById('webcamBrightness');
-            const webcamBrightnessValue = document.getElementById('webcamBrightnessValue');
-            const webcamContrast = document.getElementById('webcamContrast');
-            const webcamContrastValue = document.getElementById('webcamContrastValue');
-            const webcamSaturation = document.getElementById('webcamSaturation');
-            const webcamSaturationValue = document.getElementById('webcamSaturationValue');
-            const webcamSharpness = document.getElementById('webcamSharpness');
-            const webcamSharpnessValue = document.getElementById('webcamSharpnessValue');
-            const webcamFlipH = document.getElementById('webcamFlipH');
-            const webcamFlipV = document.getElementById('webcamFlipV');
-            const webcamMotionEnable = document.getElementById('webcamMotionEnable');
-            const webcamMotionSensitivity = document.getElementById('webcamMotionSensitivity');
-            const webcamSensitivityValue = document.getElementById('webcamSensitivityValue');
-
-            if (webcamEnabled) webcamEnabled.checked = settings.webcam.enabled || false;
-            if (webcamResolution) webcamResolution.value = settings.webcam.resolution || '640x480';
-            if (webcamFps) webcamFps.value = settings.webcam.fps || 15;
-            if (webcamFpsValue) webcamFpsValue.textContent = (settings.webcam.fps || 15) + ' fps';
-            if (webcamQuality) webcamQuality.value = settings.webcam.quality || 80;
-            if (webcamQualityValue) webcamQualityValue.textContent = (settings.webcam.quality || 80) + '%';
-            if (webcamBrightness) webcamBrightness.value = settings.webcam.brightness || 0;
-            if (webcamBrightnessValue) webcamBrightnessValue.textContent = settings.webcam.brightness || 0;
-            if (webcamContrast) webcamContrast.value = settings.webcam.contrast || 0;
-            if (webcamContrastValue) webcamContrastValue.textContent = settings.webcam.contrast || 0;
-            if (webcamSaturation) webcamSaturation.value = settings.webcam.saturation || 0;
-            if (webcamSaturationValue) webcamSaturationValue.textContent = settings.webcam.saturation || 0;
-            if (webcamSharpness) webcamSharpness.value = settings.webcam.sharpness || 0;
-            if (webcamSharpnessValue) webcamSharpnessValue.textContent = settings.webcam.sharpness || 0;
-            if (webcamFlipH) webcamFlipH.checked = settings.webcam.flip_h || false;
-            if (webcamFlipV) webcamFlipV.checked = settings.webcam.flip_v || false;
-            if (webcamMotionEnable) webcamMotionEnable.checked = settings.webcam.motion_detection || false;
-            if (webcamMotionSensitivity) webcamMotionSensitivity.value = settings.webcam.motion_sensitivity || 50;
-            if (webcamSensitivityValue) webcamSensitivityValue.textContent = (settings.webcam.motion_sensitivity || 50) + '%';
-        }
-
-        // Firmware Settings
-        if (settings.firmware) {
-            const currentVersion = document.getElementById('currentVersion');
-            const availableVersion = document.getElementById('availableVersion');
-            const lastCheck = document.getElementById('lastCheck');
-            const updateBtn = document.getElementById('updateBtn');
-            const autoUpdate = document.getElementById('autoUpdate');
-            const updateChannel = document.getElementById('updateChannel');
-            const updateUrl = document.getElementById('updateUrl');
-            const deviceModel = document.getElementById('deviceModel');
-            const deviceId = document.getElementById('deviceId');
-            const mcu = document.getElementById('mcu');
-            const modemType = document.getElementById('modemType');
-            const flashSize = document.getElementById('flashSize');
-            const psram = document.getElementById('psram');
-
-            if (currentVersion) currentVersion.textContent = settings.firmware.currentVersion || '1.0.0';
-            if (availableVersion) availableVersion.textContent = settings.firmware.availableVersion || '---';
-            if (lastCheck) lastCheck.textContent = settings.firmware.lastCheck ?
-                'Last check: ' + new Date(settings.firmware.lastCheck).toLocaleString() : 'Last check: Never';
-
-            if (updateBtn) {
-                if (settings.firmware.availableVersion && settings.firmware.availableVersion > settings.firmware.currentVersion) {
-                    updateBtn.style.display = 'inline-block';
-                } else {
-                    updateBtn.style.display = 'none';
-                }
-            }
-
-            if (autoUpdate) autoUpdate.checked = settings.firmware.autoUpdate || false;
-            if (updateChannel) updateChannel.value = settings.firmware.updateChannel || 'stable';
-            if (updateUrl) updateUrl.value = settings.firmware.updateUrl || 'https://firmware.atebd.com/esp32-s3';
-            if (deviceModel) deviceModel.textContent = settings.firmware.deviceModel || 'ESP32-S3 A7670E';
-            if (deviceId) deviceId.textContent = settings.firmware.deviceId || 'esp32-s3-1';
-            if (mcu) mcu.textContent = settings.firmware.mcu || 'ESP32-S3';
-            if (modemType) modemType.textContent = settings.firmware.modem || 'A7670E';
-            if (flashSize) flashSize.textContent = settings.firmware.flashSize || '16MB';
-            if (psram) psram.textContent = settings.firmware.psram || '8MB';
         }
 
         // System Settings
@@ -255,28 +137,28 @@
                 if (notifyBotToken) notifyBotToken.value = notif.telegram.botToken || '';
                 if (notifyChatId) notifyChatId.value = notif.telegram.chatId || '';
             }
+        }
 
-            // Pushover
-            if (notif.pushover) {
-                const notifyPushoverEnable = document.getElementById('notifyPushoverEnable');
-                const notifyAppToken = document.getElementById('notifyAppToken');
-                const notifyUserKey = document.getElementById('notifyUserKey');
+        // Firmware Settings
+        if (settings.firmware) {
+            const currentVersion = document.getElementById('currentVersion');
+            const availableVersion = document.getElementById('availableVersion');
+            const lastCheck = document.getElementById('lastCheck');
+            const updateBtn = document.getElementById('updateBtn');
+            const autoUpdate = document.getElementById('autoUpdate');
+            const updateChannel = document.getElementById('updateChannel');
 
-                if (notifyPushoverEnable) notifyPushoverEnable.checked = notif.pushover.enabled || false;
-                if (notifyAppToken) notifyAppToken.value = notif.pushover.appToken || '';
-                if (notifyUserKey) notifyUserKey.value = notif.pushover.userKey || '';
+            if (currentVersion) currentVersion.textContent = settings.firmware.currentVersion || '1.0.0';
+            if (availableVersion) availableVersion.textContent = settings.firmware.availableVersion || '---';
+            if (lastCheck) lastCheck.textContent = settings.firmware.lastCheck ?
+                'Last check: ' + new Date(settings.firmware.lastCheck).toLocaleString() : 'Last check: Never';
+
+            if (updateBtn) {
+                updateBtn.style.display = settings.firmware.availableVersion ? 'inline-block' : 'none';
             }
 
-            // Webhook
-            if (notif.webhook) {
-                const notifyWebhookEnable = document.getElementById('notifyWebhookEnable');
-                const webhookUrl = document.getElementById('webhookUrl');
-                const webhookMethod = document.getElementById('webhookMethod');
-
-                if (notifyWebhookEnable) notifyWebhookEnable.checked = notif.webhook.enabled || false;
-                if (webhookUrl) webhookUrl.value = notif.webhook.url || '';
-                if (webhookMethod) webhookMethod.value = notif.webhook.method || 'POST';
-            }
+            if (autoUpdate) autoUpdate.checked = settings.firmware.autoUpdate || false;
+            if (updateChannel) updateChannel.value = settings.firmware.updateChannel || 'stable';
         }
 
         // Backup Settings
@@ -303,8 +185,6 @@
         // Show/hide dependent sections
         toggleEmailSettings();
         toggleTelegramSettings();
-        togglePushoverSettings();
-        toggleWebhookSettings();
     }
 
     // Display users table
@@ -322,10 +202,10 @@
             const lastLogin = user.last_login ? new Date(user.last_login).toLocaleString() : 'Never';
             html += `
                 <tr>
-                    <td>${user.username}</td>
-                    <td>${user.name || '-'}</td>
-                    <td>${user.email || '-'}</td>
-                    <td><span class="badge bg-${user.role === 'admin' ? 'danger' : 'info'}">${user.role}</span></td>
+                    <td>${escapeHtml(user.username)}</td>
+                    <td>${escapeHtml(user.name || '-')}</td>
+                    <td>${escapeHtml(user.email || '-')}</td>
+                    <td><span class="badge bg-${user.role === 'admin' ? 'danger' : 'info'}">${escapeHtml(user.role)}</span></td>
                     <td><small>${lastLogin}</small></td>
                     <td>
                         <button class="btn btn-sm btn-outline-primary" onclick="editUser(${user.id})">
@@ -358,7 +238,7 @@
                         const created = new Date(backup.created).toLocaleString();
                         html += `
                             <tr>
-                                <td><i class="bi bi-file-earmark-zip me-2"></i>${backup.name}</td>
+                                <td><i class="bi bi-file-earmark-zip me-2"></i>${escapeHtml(backup.name)}</td>
                                 <td>${size}</td>
                                 <td>${created}</td>
                                 <td>
@@ -385,63 +265,6 @@
 
     // Attach event listeners
     function attachEventListeners() {
-        // Webcam range inputs
-        const fpsInput = document.getElementById('webcamFps');
-        if (fpsInput) {
-            fpsInput.addEventListener('input', (e) => {
-                const valueEl = document.getElementById('webcamFpsValue');
-                if (valueEl) valueEl.textContent = e.target.value + ' fps';
-            });
-        }
-
-        const qualityInput = document.getElementById('webcamQuality');
-        if (qualityInput) {
-            qualityInput.addEventListener('input', (e) => {
-                const valueEl = document.getElementById('webcamQualityValue');
-                if (valueEl) valueEl.textContent = e.target.value + '%';
-            });
-        }
-
-        const brightnessInput = document.getElementById('webcamBrightness');
-        if (brightnessInput) {
-            brightnessInput.addEventListener('input', (e) => {
-                const valueEl = document.getElementById('webcamBrightnessValue');
-                if (valueEl) valueEl.textContent = e.target.value;
-            });
-        }
-
-        const contrastInput = document.getElementById('webcamContrast');
-        if (contrastInput) {
-            contrastInput.addEventListener('input', (e) => {
-                const valueEl = document.getElementById('webcamContrastValue');
-                if (valueEl) valueEl.textContent = e.target.value;
-            });
-        }
-
-        const saturationInput = document.getElementById('webcamSaturation');
-        if (saturationInput) {
-            saturationInput.addEventListener('input', (e) => {
-                const valueEl = document.getElementById('webcamSaturationValue');
-                if (valueEl) valueEl.textContent = e.target.value;
-            });
-        }
-
-        const sharpnessInput = document.getElementById('webcamSharpness');
-        if (sharpnessInput) {
-            sharpnessInput.addEventListener('input', (e) => {
-                const valueEl = document.getElementById('webcamSharpnessValue');
-                if (valueEl) valueEl.textContent = e.target.value;
-            });
-        }
-
-        const motionSensitivity = document.getElementById('webcamMotionSensitivity');
-        if (motionSensitivity) {
-            motionSensitivity.addEventListener('input', (e) => {
-                const valueEl = document.getElementById('webcamSensitivityValue');
-                if (valueEl) valueEl.textContent = e.target.value + '%';
-            });
-        }
-
         // Notification toggles
         const emailToggle = document.getElementById('notifyEmailEnable');
         if (emailToggle) {
@@ -451,16 +274,6 @@
         const telegramToggle = document.getElementById('notifyTelegramEnable');
         if (telegramToggle) {
             telegramToggle.addEventListener('change', toggleTelegramSettings);
-        }
-
-        const pushoverToggle = document.getElementById('notifyPushoverEnable');
-        if (pushoverToggle) {
-            pushoverToggle.addEventListener('change', togglePushoverSettings);
-        }
-
-        const webhookToggle = document.getElementById('notifyWebhookEnable');
-        if (webhookToggle) {
-            webhookToggle.addEventListener('change', toggleWebhookSettings);
         }
     }
 
@@ -474,18 +287,6 @@
     function toggleTelegramSettings() {
         const enabled = document.getElementById('notifyTelegramEnable')?.checked || false;
         const settingsDiv = document.getElementById('telegramSettings');
-        if (settingsDiv) settingsDiv.style.display = enabled ? 'block' : 'none';
-    }
-
-    function togglePushoverSettings() {
-        const enabled = document.getElementById('notifyPushoverEnable')?.checked || false;
-        const settingsDiv = document.getElementById('pushoverSettings');
-        if (settingsDiv) settingsDiv.style.display = enabled ? 'block' : 'none';
-    }
-
-    function toggleWebhookSettings() {
-        const enabled = document.getElementById('notifyWebhookEnable')?.checked || false;
-        const settingsDiv = document.getElementById('webhookSettings');
         if (settingsDiv) settingsDiv.style.display = enabled ? 'block' : 'none';
     }
 
@@ -536,19 +337,14 @@
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Testing...';
         btn.disabled = true;
 
-        // Use server-side test (more reliable)
-        fetch('/api/mqtt/test', {
+        fetch('/api/settings/test/mqtt', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ host, port: parseInt(port), username, password })
         })
             .then(response => response.json())
             .then(data => {
-                if (data.success) {
-                    showToast(data.message, 'success');
-                } else {
-                    showToast(data.message, 'danger');
-                }
+                showToast(data.message, data.success ? 'success' : 'danger');
             })
             .catch(error => {
                 showToast('Test failed: ' + error.message, 'danger');
@@ -559,146 +355,35 @@
             });
     };
 
-    window.saveModemSettings = function () {
-        const data = {
-            apn: document.getElementById('modemApn')?.value || 'internet',
-            apnUser: document.getElementById('modemApnUser')?.value || '',
-            apnPass: document.getElementById('modemApnPass')?.value || '',
-            auth: document.getElementById('modemAuth')?.value || 'none',
-            networkMode: document.getElementById('modemNetworkMode')?.value || 'auto',
-            preferredNetwork: document.getElementById('modemPreferredNetwork')?.value || 'AUTO',
-            autoConnect: document.getElementById('modemAutoConnect')?.checked || false,
-            pinCode: document.getElementById('modemPinCode')?.value || '',
-            band: document.getElementById('modemBand')?.value || 'ALL',
-            roaming: document.getElementById('modemRoaming')?.checked || false,
-            dataUsage: {
-                limit: parseInt(document.getElementById('dataLimit')?.value) || 0,
-                warning: parseInt(document.getElementById('dataWarning')?.value) || 80,
-                resetDay: parseInt(document.getElementById('dataResetDay')?.value) || 1
-            }
-        };
-
-        if (!data.apn) {
-            showToast('APN is required', 'warning');
-            return;
-        }
-
-        saveSettings('/api/settings/modem', data, 'Modem settings saved');
-    };
-
-    window.scanNetworks = function () {
-        const btn = event.target;
-        const originalHtml = btn.innerHTML;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Scanning...';
-        btn.disabled = true;
-
-        // Request scan from device via MQTT
-        if (typeof socket !== 'undefined' && socket.connected) {
-            socket.emit('modem:scan-networks');
-        }
-
-        // Show loading in results
-        const scanResults = document.getElementById('networkScanResults');
-        const networksList = document.getElementById('networksList');
-
-        if (scanResults) scanResults.style.display = 'block';
-        if (networksList) {
-            networksList.innerHTML = `
-                <div class="list-group-item text-center py-3">
-                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-                    <span class="ms-2">Scanning for networks...</span>
-                </div>
-            `;
-        }
-
-        // Simulate scan results for now (in production, these would come from WebSocket)
-        setTimeout(() => {
-            if (networksList) {
-                networksList.innerHTML = `
-                    <div class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <i class="bi bi-broadcast text-primary me-2"></i>
-                                <strong>Robi 4G</strong>
-                            </div>
-                            <div>
-                                <span class="badge bg-success me-2">Available</span>
-                                <small class="text-muted">Operator: 47001</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <i class="bi bi-broadcast text-primary me-2"></i>
-                                <strong>Grameenphone</strong>
-                            </div>
-                            <div>
-                                <span class="badge bg-success me-2">Available</span>
-                                <small class="text-muted">Operator: 47002</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <i class="bi bi-broadcast text-primary me-2"></i>
-                                <strong>Banglalink</strong>
-                            </div>
-                            <div>
-                                <span class="badge bg-warning me-2">Restricted</span>
-                                <small class="text-muted">Operator: 47003</small>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-            btn.innerHTML = originalHtml;
-            btn.disabled = false;
-        }, 3000);
-    };
-
-    // ==================== WEBCAM SETTINGS ====================
-    window.saveWebcamSettings = function () {
-        const data = {
-            enabled: document.getElementById('webcamEnabled')?.checked || false,
-            resolution: document.getElementById('webcamResolution')?.value || '640x480',
-            fps: parseInt(document.getElementById('webcamFps')?.value) || 15,
-            quality: parseInt(document.getElementById('webcamQuality')?.value) || 80,
-            brightness: parseInt(document.getElementById('webcamBrightness')?.value) || 0,
-            contrast: parseInt(document.getElementById('webcamContrast')?.value) || 0,
-            saturation: parseInt(document.getElementById('webcamSaturation')?.value) || 0,
-            sharpness: parseInt(document.getElementById('webcamSharpness')?.value) || 0,
-            flip_h: document.getElementById('webcamFlipH')?.checked || false,
-            flip_v: document.getElementById('webcamFlipV')?.checked || false,
-            motion_detection: document.getElementById('webcamMotionEnable')?.checked || false,
-            motion_sensitivity: parseInt(document.getElementById('webcamMotionSensitivity')?.value) || 50
-        };
-
-        saveSettings('/api/settings/webcam', data, 'Webcam settings saved');
-    };
-
+    // ==================== FIRMWARE SETTINGS ====================
     window.checkForUpdates = function () {
         const btn = event.target;
         const originalHtml = btn.innerHTML;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking...';
         btn.disabled = true;
 
-        fetch('/api/settings/firmware/check', { method: 'POST' })
+        fetch('/api/settings/firmware/check', {
+            method: 'POST'
+        })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     showToast(data.message, 'success');
                     if (data.data) {
-                        document.getElementById('availableVersion').textContent =
-                            data.data.available || '---';
-                        document.getElementById('updateBtn').style.display =
-                            data.data.updateAvailable ? 'inline-block' : 'none';
+                        const availableVersion = document.getElementById('availableVersion');
+                        const lastCheck = document.getElementById('lastCheck');
+                        const updateBtn = document.getElementById('updateBtn');
+
+                        if (availableVersion) availableVersion.textContent = data.data.available || '---';
+                        if (lastCheck) lastCheck.textContent = 'Last check: just now';
+                        if (updateBtn) updateBtn.style.display = data.data.updateAvailable ? 'inline-block' : 'none';
                     }
+                } else {
+                    showToast(data.message, 'danger');
                 }
             })
             .catch(error => {
-                showToast('Error checking updates: ' + error.message, 'danger');
+                showToast('Error checking for updates: ' + error.message, 'danger');
             })
             .finally(() => {
                 btn.innerHTML = originalHtml;
@@ -707,9 +392,7 @@
     };
 
     window.performUpdate = function () {
-        if (!confirm('Are you sure you want to update the firmware? The device will restart and may be unavailable for a few minutes.')) {
-            return;
-        }
+        if (!confirm('Are you sure you want to update the firmware? The device will restart.')) return;
 
         const btn = document.getElementById('updateBtn');
         if (!btn) return;
@@ -725,9 +408,7 @@
             .then(data => {
                 if (data.success) {
                     showToast(data.message, 'success');
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 5000);
+                    setTimeout(() => window.location.reload(), 5000);
                 } else {
                     showToast(data.message, 'danger');
                     btn.innerHTML = originalHtml;
@@ -744,8 +425,7 @@
     window.saveFirmwareSettings = function () {
         const data = {
             autoUpdate: document.getElementById('autoUpdate')?.checked || false,
-            updateChannel: document.getElementById('updateChannel')?.value || 'stable',
-            updateUrl: document.getElementById('updateUrl')?.value || 'https://firmware.atebd.com/esp32-s3'
+            updateChannel: document.getElementById('updateChannel')?.value || 'stable'
         };
 
         saveSettings('/api/settings/firmware', data, 'Firmware settings saved');
@@ -766,25 +446,15 @@
     };
 
     window.restartServer = function () {
-        if (!confirm('Are you sure you want to restart the server? This will temporarily disconnect all clients.')) {
-            return;
-        }
+        if (!confirm('Restart the server? This will temporarily disconnect all clients.')) return;
 
         fetch('/api/settings/restart', { method: 'POST' })
             .then(response => response.json())
             .then(data => {
-                if (data.success) {
-                    showToast(data.message, 'success');
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 3000);
-                } else {
-                    showToast(data.message, 'danger');
-                }
+                showToast(data.message, 'success');
+                setTimeout(() => window.location.reload(), 3000);
             })
-            .catch(error => {
-                showToast('Error: ' + error.message, 'danger');
-            });
+            .catch(error => showToast('Error: ' + error.message, 'danger'));
     };
 
     window.viewLogs = function () {
@@ -797,11 +467,7 @@
             .then(response => response.json())
             .then(data => {
                 if (logsContent) {
-                    if (data.success) {
-                        logsContent.textContent = data.data || 'No logs found';
-                    } else {
-                        logsContent.textContent = 'Error loading logs: ' + data.message;
-                    }
+                    logsContent.textContent = data.success ? (data.data || 'No logs found') : 'Error loading logs';
                 }
             })
             .catch(error => {
@@ -821,8 +487,7 @@
             .then(data => {
                 if (data.success) {
                     showToast('Logs cleared', 'success');
-                    const logsContent = document.getElementById('logsContent');
-                    if (logsContent) logsContent.textContent = 'Logs cleared';
+                    document.getElementById('logsContent').textContent = 'Logs cleared';
                 } else {
                     showToast(data.message, 'danger');
                 }
@@ -847,17 +512,6 @@
                 enabled: document.getElementById('notifyTelegramEnable')?.checked || false,
                 botToken: document.getElementById('notifyBotToken')?.value || '',
                 chatId: document.getElementById('notifyChatId')?.value || ''
-            },
-            pushover: {
-                enabled: document.getElementById('notifyPushoverEnable')?.checked || false,
-                appToken: document.getElementById('notifyAppToken')?.value || '',
-                userKey: document.getElementById('notifyUserKey')?.value || ''
-            },
-            webhook: {
-                enabled: document.getElementById('notifyWebhookEnable')?.checked || false,
-                url: document.getElementById('webhookUrl')?.value || '',
-                method: document.getElementById('webhookMethod')?.value || 'POST',
-                headers: {}
             }
         };
 
@@ -886,16 +540,8 @@
             body: JSON.stringify(data)
         })
             .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(data.message, 'success');
-                } else {
-                    showToast(data.message, 'danger');
-                }
-            })
-            .catch(error => {
-                showToast('Test failed: ' + error.message, 'danger');
-            })
+            .then(data => showToast(data.message, data.success ? 'success' : 'danger'))
+            .catch(error => showToast('Test failed: ' + error.message, 'danger'))
             .finally(() => {
                 btn.innerHTML = originalHtml;
                 btn.disabled = false;
@@ -919,49 +565,8 @@
             body: JSON.stringify(data)
         })
             .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(data.message, 'success');
-                } else {
-                    showToast(data.message, 'danger');
-                }
-            })
-            .catch(error => {
-                showToast('Test failed: ' + error.message, 'danger');
-            })
-            .finally(() => {
-                btn.innerHTML = originalHtml;
-                btn.disabled = false;
-            });
-    };
-
-    window.testPushover = function () {
-        const data = {
-            appToken: document.getElementById('notifyAppToken')?.value,
-            userKey: document.getElementById('notifyUserKey')?.value
-        };
-
-        const btn = event.target;
-        const originalHtml = btn.innerHTML;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
-        btn.disabled = true;
-
-        fetch('/api/settings/test/pushover', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(data.message, 'success');
-                } else {
-                    showToast(data.message, 'danger');
-                }
-            })
-            .catch(error => {
-                showToast('Test failed: ' + error.message, 'danger');
-            })
+            .then(data => showToast(data.message, data.success ? 'success' : 'danger'))
+            .catch(error => showToast('Test failed: ' + error.message, 'danger'))
             .finally(() => {
                 btn.innerHTML = originalHtml;
                 btn.disabled = false;
@@ -985,9 +590,7 @@
                     showToast(data.message, 'danger');
                 }
             })
-            .catch(error => {
-                showToast('Error: ' + error.message, 'danger');
-            })
+            .catch(error => showToast('Error: ' + error.message, 'danger'))
             .finally(() => {
                 btn.innerHTML = originalHtml;
                 btn.disabled = false;
@@ -995,9 +598,7 @@
     };
 
     window.restoreBackup = function (filename) {
-        if (!confirm(`Restore backup ${filename}? This will overwrite current data and restart the server.`)) {
-            return;
-        }
+        if (!confirm(`Restore backup ${filename}? This will restart the server.`)) return;
 
         fetch('/api/settings/backup/restore', {
             method: 'POST',
@@ -1008,16 +609,12 @@
             .then(data => {
                 if (data.success) {
                     showToast(data.message, 'success');
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 5000);
+                    setTimeout(() => window.location.reload(), 5000);
                 } else {
                     showToast(data.message, 'danger');
                 }
             })
-            .catch(error => {
-                showToast('Error: ' + error.message, 'danger');
-            });
+            .catch(error => showToast('Error: ' + error.message, 'danger'));
     };
 
     window.deleteBackup = function (filename) {
@@ -1084,9 +681,7 @@
                     showToast(data.message, 'danger');
                 }
             })
-            .catch(error => {
-                showToast('Error: ' + error.message, 'danger');
-            })
+            .catch(error => showToast('Error: ' + error.message, 'danger'))
             .finally(() => {
                 btn.innerHTML = originalHtml;
                 btn.disabled = false;
@@ -1095,24 +690,15 @@
 
     window.editUser = function (id) {
         currentEditUserId = id;
-
-        // Find user in settings
         const user = settings.users?.find(u => u.id === id);
         if (!user) return;
 
-        const editUserId = document.getElementById('editUserId');
-        const editUsername = document.getElementById('editUsername');
-        const editName = document.getElementById('editName');
-        const editEmail = document.getElementById('editEmail');
-        const editRole = document.getElementById('editRole');
-        const editPassword = document.getElementById('editPassword');
-
-        if (editUserId) editUserId.value = user.id;
-        if (editUsername) editUsername.value = user.username;
-        if (editName) editName.value = user.name || '';
-        if (editEmail) editEmail.value = user.email || '';
-        if (editRole) editRole.value = user.role || 'user';
-        if (editPassword) editPassword.value = '';
+        document.getElementById('editUserId').value = user.id;
+        document.getElementById('editUsername').value = user.username;
+        document.getElementById('editName').value = user.name || '';
+        document.getElementById('editEmail').value = user.email || '';
+        document.getElementById('editRole').value = user.role || 'user';
+        document.getElementById('editPassword').value = '';
 
         const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
         modal.show();
@@ -1155,9 +741,7 @@
                     showToast(data.message, 'danger');
                 }
             })
-            .catch(error => {
-                showToast('Error: ' + error.message, 'danger');
-            })
+            .catch(error => showToast('Error: ' + error.message, 'danger'))
             .finally(() => {
                 btn.innerHTML = originalHtml;
                 btn.disabled = false;
@@ -1201,15 +785,12 @@
             body: JSON.stringify(data)
         })
             .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error ${response.status}`);
-                }
+                if (!response.ok) throw new Error(`HTTP error ${response.status}`);
                 return response.json();
             })
             .then(data => {
                 if (data.success) {
                     showToast(successMessage, 'success');
-                    // Reload settings to show updated values
                     setTimeout(loadSettings, 1000);
                 } else {
                     showToast(data.message || 'Failed to save', 'danger');
@@ -1227,8 +808,6 @@
 
     window.saveAllSettings = function () {
         saveMQTTSettings();
-        saveModemSettings();
-        saveWebcamSettings();
         saveFirmwareSettings();
         saveSystemSettings();
         saveNotificationSettings();
@@ -1236,21 +815,14 @@
     };
 
     window.factoryReset = function () {
-        if (!confirm('FACTORY RESET: This will delete all data except users and restart the server. Are you sure?')) {
-            return;
-        }
-        if (!confirm('This action cannot be undone. Type "RESET" to confirm.')) {
-            return;
-        }
+        if (!confirm('FACTORY RESET: This will delete all data except users. Type "RESET" to confirm.')) return;
 
         fetch('/api/settings/factory-reset', { method: 'POST' })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     showToast(data.message, 'warning');
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 5000);
+                    setTimeout(() => window.location.reload(), 5000);
                 } else {
                     showToast(data.message, 'danger');
                 }
@@ -1266,6 +838,16 @@
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
+    function escapeHtml(unsafe) {
+        if (!unsafe) return '';
+        return String(unsafe)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
     function showToast(message, type = 'info') {
         if (typeof window.showToast === 'function') {
             window.showToast(message, type);
@@ -1278,9 +860,6 @@
     window.togglePassword = togglePassword;
     window.saveMQTTSettings = saveMQTTSettings;
     window.testMQTTConnection = testMQTTConnection;
-    window.saveModemSettings = saveModemSettings;
-    window.scanNetworks = scanNetworks;
-    window.saveWebcamSettings = saveWebcamSettings;
     window.checkForUpdates = checkForUpdates;
     window.performUpdate = performUpdate;
     window.saveFirmwareSettings = saveFirmwareSettings;
@@ -1292,7 +871,6 @@
     window.saveNotificationSettings = saveNotificationSettings;
     window.testEmail = testEmail;
     window.testTelegram = testTelegram;
-    window.testPushover = testPushover;
     window.createBackup = createBackup;
     window.restoreBackup = restoreBackup;
     window.deleteBackup = deleteBackup;

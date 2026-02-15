@@ -10,5 +10,7 @@ router.use('/ussd', require('./ussd'));
 router.use('/webcam', require('./webcam'));
 router.use('/settings', require('./settings'));
 router.use('/storage', require('./storage'));
+router.use('/location', require('./location'));
+router.use('/test', require('./test'));
 
 module.exports = router;

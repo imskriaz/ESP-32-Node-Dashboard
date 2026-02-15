@@ -15,9 +15,35 @@ router.get('/logs', async (req, res) => {
         const limit = parseInt(req.query.limit) || 20;
         const offset = (page - 1) * limit;
 
+        // FIXED: Better query to get contact names
         const calls = await db.all(`
-            SELECT c.*, 
-                   (SELECT name FROM contacts WHERE phone_number LIKE '%' || c.phone_number || '%' LIMIT 1) as contact_name
+            SELECT 
+                c.*,
+                (
+                    SELECT name FROM contacts 
+                    WHERE 
+                        -- Try exact match first
+                        REPLACE(REPLACE(phone_number, '+', ''), ' ', '') = REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '')
+                        OR
+                        -- Then try matching last 10 digits
+                        SUBSTR('0000000000' || REPLACE(REPLACE(phone_number, '+', ''), ' ', ''), -10) = 
+                        SUBSTR('0000000000' || REPLACE(REPLACE(c.phone_number, '+', ''), ' ', ''), -10)
+                        OR
+                        -- Then try contains
+                        REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '') LIKE '%' || REPLACE(REPLACE(phone_number, '+', ''), ' ', '') || '%'
+                        OR
+                        REPLACE(REPLACE(phone_number, '+', ''), ' ', '') LIKE '%' || REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '') || '%'
+                    LIMIT 1
+                ) as contact_name,
+                (
+                    SELECT company FROM contacts 
+                    WHERE 
+                        REPLACE(REPLACE(phone_number, '+', ''), ' ', '') = REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '')
+                        OR
+                        SUBSTR('0000000000' || REPLACE(REPLACE(phone_number, '+', ''), ' ', ''), -10) = 
+                        SUBSTR('0000000000' || REPLACE(REPLACE(c.phone_number, '+', ''), ' ', ''), -10)
+                    LIMIT 1
+                ) as contact_company
             FROM calls c
             ORDER BY start_time DESC 
             LIMIT ? OFFSET ?
@@ -55,7 +81,18 @@ router.get('/recent', async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
 
         const calls = await db.all(`
-            SELECT * FROM calls 
+            SELECT 
+                c.*,
+                (
+                    SELECT name FROM contacts 
+                    WHERE 
+                        REPLACE(REPLACE(phone_number, '+', ''), ' ', '') = REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '')
+                        OR
+                        SUBSTR('0000000000' || REPLACE(REPLACE(phone_number, '+', ''), ' ', ''), -10) = 
+                        SUBSTR('0000000000' || REPLACE(REPLACE(c.phone_number, '+', ''), ' ', ''), -10)
+                    LIMIT 1
+                ) as contact_name
+            FROM calls c
             ORDER BY start_time DESC 
             LIMIT ?
         `, [limit]);
@@ -69,6 +106,58 @@ router.get('/recent', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to fetch recent calls: ' + error.message
+        });
+    }
+});
+
+// Get single call
+router.get('/logs/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const db = req.app.locals.db;
+        
+        if (!db) {
+            throw new Error('Database not available');
+        }
+
+        const call = await db.get(`
+            SELECT 
+                c.*,
+                (
+                    SELECT name FROM contacts 
+                    WHERE 
+                        REPLACE(REPLACE(phone_number, '+', ''), ' ', '') = REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '')
+                        OR
+                        SUBSTR('0000000000' || REPLACE(REPLACE(phone_number, '+', ''), ' ', ''), -10) = 
+                        SUBSTR('0000000000' || REPLACE(REPLACE(c.phone_number, '+', ''), ' ', ''), -10)
+                    LIMIT 1
+                ) as contact_name,
+                (
+                    SELECT company FROM contacts 
+                    WHERE 
+                        REPLACE(REPLACE(phone_number, '+', ''), ' ', '') = REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '')
+                    LIMIT 1
+                ) as contact_company
+            FROM calls c
+            WHERE c.id = ?
+        `, [id]);
+
+        if (!call) {
+            return res.status(404).json({
+                success: false,
+                message: 'Call not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: call
+        });
+    } catch (error) {
+        logger.error('API get call error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch call: ' + error.message
         });
     }
 });
@@ -447,38 +536,6 @@ router.delete('/logs/:id', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to delete call log: ' + error.message
-        });
-    }
-});
-
-// Get single call
-router.get('/logs/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const db = req.app.locals.db;
-        
-        if (!db) {
-            throw new Error('Database not available');
-        }
-
-        const call = await db.get('SELECT * FROM calls WHERE id = ?', [id]);
-
-        if (!call) {
-            return res.status(404).json({
-                success: false,
-                message: 'Call not found'
-            });
-        }
-
-        res.json({
-            success: true,
-            data: call
-        });
-    } catch (error) {
-        logger.error('API get call error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to fetch call: ' + error.message
         });
     }
 });

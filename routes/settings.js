@@ -8,7 +8,7 @@ const bcrypt = require('bcryptjs');
 const { exec } = require('child_process');
 const os = require('os');
 
-// Get all settings
+// Get all settings (cleaned - only system-level settings)
 router.get('/', async (req, res) => {
     try {
         const db = req.app.locals.db;
@@ -29,76 +29,13 @@ router.get('/', async (req, res) => {
             }
         });
 
-        // Get MQTT settings from environment
+        // Get MQTT settings from environment (only what's needed)
         settingsObj.mqtt = {
             host: process.env.MQTT_HOST || 'device.atebd.com',
             port: parseInt(process.env.MQTT_PORT) || 1883,
             username: process.env.MQTT_USER || 'deviceuser',
-            password: process.env.MQTT_PASSWORD ? '********' : '',
             clientId: process.env.MQTT_CLIENT_ID || `esp32-dashboard-${os.hostname()}`,
-            connected: global.mqttService ? global.mqttService.connected : false,
-            topics: {
-                command: 'device/+/command/#',
-                status: 'device/+/status',
-                sms: 'device/+/sms/#',
-                call: 'device/+/call/#',
-                ussd: 'device/+/ussd/#',
-                webcam: 'device/+/webcam/#',
-                ota: 'device/+/ota/#'
-            }
-        };
-
-        // Get modem default settings
-        settingsObj.modem = settingsObj.modem || {
-            apn: 'internet',
-            apnUser: '',
-            apnPass: '',
-            auth: 'none',
-            networkMode: 'auto',
-            preferredNetwork: 'AUTO',
-            autoConnect: true,
-            pinCode: '',
-            band: 'ALL',
-            roaming: false,
-            dataUsage: {
-                limit: 0,
-                warning: 80,
-                resetDay: 1
-            }
-        };
-
-        // Get webcam settings from database
-        const webcam = await db.get('SELECT * FROM webcam WHERE id = 1');
-        settingsObj.webcam = webcam ? {
-            enabled: webcam.enabled === 1,
-            resolution: webcam.resolution,
-            fps: webcam.fps,
-            quality: webcam.quality,
-            brightness: webcam.brightness,
-            contrast: webcam.contrast,
-            saturation: webcam.saturation,
-            sharpness: webcam.sharpness,
-            flip_h: webcam.flip_horizontal === 1,
-            flip_v: webcam.flip_vertical === 1,
-            motion_detection: webcam.motion_detection === 1,
-            motion_sensitivity: webcam.motion_sensitivity,
-            stream_url: webcam.stream_url || '',
-            recording: webcam.recording === 1
-        } : {
-            enabled: false,
-            resolution: '640x480',
-            fps: 15,
-            quality: 80,
-            brightness: 0,
-            contrast: 0,
-            saturation: 0,
-            sharpness: 0,
-            flip_h: false,
-            flip_v: false,
-            motion_detection: false,
-            motion_sensitivity: 50,
-            stream_url: '',
-            recording: false
+            connected: global.mqttService ? global.mqttService.connected : false
         };
 
         // Get system settings
@@ -109,15 +46,10 @@ router.get('/', async (req, res) => {
             logLevel: process.env.LOG_LEVEL || 'info',
             autoRestart: false,
             restartSchedule: '03:00',
-            backupConfig: true,
-            uptime: os.uptime(),
-            platform: process.platform,
-            nodeVersion: process.version,
-            memory: process.memoryUsage(),
-            cpu: os.cpus().length
+            backupConfig: true
         };
 
-        // Get notification settings
+        // Get notification settings (simplified)
         settingsObj.notifications = settingsObj.notifications || {
             email: {
                 enabled: false,
@@ -125,7 +57,6 @@ router.get('/', async (req, res) => {
                 port: 587,
                 secure: false,
                 user: '',
-                pass: '',
                 from: '',
                 to: ''
             },
@@ -133,17 +64,6 @@ router.get('/', async (req, res) => {
                 enabled: false,
                 botToken: '',
                 chatId: ''
-            },
-            pushover: {
-                enabled: false,
-                appToken: '',
-                userKey: ''
-            },
-            webhook: {
-                enabled: false,
-                url: '',
-                method: 'POST',
-                headers: {}
             }
         };
 
@@ -161,77 +81,14 @@ router.get('/', async (req, res) => {
             lastBackup: null
         };
 
-        // Get firmware settings
+        // Get firmware settings (minimal)
         settingsObj.firmware = settingsObj.firmware || {
             currentVersion: '1.0.0',
             availableVersion: null,
             lastCheck: null,
             autoUpdate: false,
-            updateChannel: 'stable', // stable, beta, dev
-            updateUrl: 'https://firmware.atebd.com/esp32-s3',
-            deviceModel: 'ESP32-S3 A7670E',
-            deviceId: 'esp32-s3-1',
-            mcu: 'ESP32-S3',
-            modem: 'A7670E',
-            flashSize: '16MB',
-            psram: '8MB'
+            updateChannel: 'stable'
         };
-
-        // Get device status from modem service
-        if (global.modemService) {
-            const modemStatus = global.modemService.getStatus();
-            settingsObj.deviceStatus = {
-                online: global.mqttService ? global.mqttService.connected : false,
-                signal: modemStatus.mobile.signalStrength || 0,
-                battery: modemStatus.system?.battery || 0,
-                charging: modemStatus.system?.charging || false,
-                network: modemStatus.mobile.networkType || 'No Service',
-                operator: modemStatus.mobile.operator || 'Unknown',
-                sim: modemStatus.mobile.simStatus || 'Ready',
-                iccid: modemStatus.mobile.iccid || '****',
-                imei: modemStatus.system?.imei || '****',
-                ip: modemStatus.mobile.ipAddress || '0.0.0.0',
-                wifi: {
-                    connected: modemStatus.wifiClient.connected,
-                    ssid: modemStatus.wifiClient.ssid || '',
-                    signal: modemStatus.wifiClient.signalStrength || 0,
-                    ip: modemStatus.wifiClient.ipAddress || ''
-                },
-                hotspot: {
-                    enabled: modemStatus.wifiHotspot.enabled,
-                    clients: modemStatus.wifiHotspot.connectedClients || 0
-                },
-                sdCard: modemStatus.system?.sdCard || 'Not detected',
-                temperature: modemStatus.system?.temperature || 0,
-                uptime: modemStatus.system?.uptime || '0s'
-            };
-        } else {
-            settingsObj.deviceStatus = {
-                online: false,
-                signal: 0,
-                battery: 0,
-                charging: false,
-                network: 'Unknown',
-                operator: 'Unknown',
-                sim: 'Unknown',
-                iccid: '****',
-                imei: '****',
-                ip: '0.0.0.0',
-                wifi: {
-                    connected: false,
-                    ssid: '',
-                    signal: 0,
-                    ip: ''
-                },
-                hotspot: {
-                    enabled: false,
-                    clients: 0
-                },
-                sdCard: 'Unknown',
-                temperature: 0,
-                uptime: '0s'
-            };
-        }
 
         res.json({
             success: true,
@@ -245,6 +102,8 @@ router.get('/', async (req, res) => {
         });
     }
 });
+
+// ==================== MQTT SETTINGS ====================
 
 // Update MQTT settings
 router.post('/mqtt', [
@@ -339,176 +198,58 @@ router.post('/mqtt', [
     }
 });
 
-// Update modem settings
-router.post('/modem', [
-    body('apn').notEmpty().withMessage('APN is required'),
-    body('apnUser').optional(),
-    body('apnPass').optional(),
-    body('auth').isIn(['none', 'pap', 'chap']).withMessage('Invalid auth type'),
-    body('networkMode').isIn(['auto', '2g', '3g', '4g', 'lte']).withMessage('Invalid network mode'),
-    body('preferredNetwork').optional(),
-    body('autoConnect').isBoolean(),
-    body('pinCode').optional(),
-    body('band').optional(),
-    body('roaming').isBoolean(),
-    body('dataUsage.limit').optional().isInt(),
-    body('dataUsage.warning').optional().isInt({ min: 1, max: 100 }),
-    body('dataUsage.resetDay').optional().isInt({ min: 1, max: 31 })
-], async (req, res) => {
+// Test MQTT connection
+router.post('/test/mqtt', async (req, res) => {
     try {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({
-                success: false,
-                errors: errors.array()
-            });
-        }
+        const { host, port, username, password } = req.body;
 
-        const { apn, apnUser, apnPass, auth, networkMode, preferredNetwork, autoConnect, pinCode, band, roaming, dataUsage } = req.body;
-        const db = req.app.locals.db;
-
-        if (!db) {
-            throw new Error('Database not available');
-        }
-
-        // Save to settings table
-        const modemSettings = {
-            apn,
-            apnUser,
-            apnPass,
-            auth,
-            networkMode,
-            preferredNetwork,
-            autoConnect,
-            pinCode,
-            band: band || 'ALL',
-            roaming,
-            dataUsage: dataUsage || { limit: 0, warning: 80, resetDay: 1 }
-        };
-
-        await db.run(`
-            INSERT OR REPLACE INTO settings (key, value, updated_at) 
-            VALUES (?, ?, CURRENT_TIMESTAMP)
-        `, ['modem', JSON.stringify(modemSettings)]);
-
-        // Send to device via MQTT
-        if (global.mqttService && global.mqttService.connected) {
-            try {
-                await global.mqttService.publishCommand('esp32-s3-1', 'configure-modem', modemSettings);
-            } catch (mqttError) {
-                logger.error('Error sending modem config to device:', mqttError);
-                // Don't fail the request, just log the error
-            }
-        }
-
-        logger.info('Modem settings updated');
-
-        res.json({
-            success: true,
-            message: 'Modem settings updated successfully'
+        // Create temporary MQTT client for testing
+        const mqtt = require('mqtt');
+        
+        const client = mqtt.connect(`mqtt://${host}`, {
+            port: parseInt(port),
+            username,
+            password,
+            connectTimeout: 10000,
+            reconnectPeriod: 0
         });
+
+        const timeout = setTimeout(() => {
+            client.end();
+            res.json({
+                success: false,
+                message: 'Connection timeout'
+            });
+        }, 10000);
+
+        client.on('connect', () => {
+            clearTimeout(timeout);
+            client.end();
+            res.json({
+                success: true,
+                message: 'MQTT connection successful'
+            });
+        });
+
+        client.on('error', (error) => {
+            clearTimeout(timeout);
+            client.end();
+            res.json({
+                success: false,
+                message: 'Connection failed: ' + error.message
+            });
+        });
+
     } catch (error) {
-        logger.error('API update modem settings error:', error);
+        logger.error('MQTT test error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to update modem settings: ' + error.message
+            message: 'Test failed: ' + error.message
         });
     }
 });
 
-// Update webcam settings
-router.post('/webcam', [
-    body('enabled').isBoolean(),
-    body('resolution').isIn(['1600x1200', '1280x1024', '1024x768', '800x600', '640x480', '352x288', '320x240', '176x144']),
-    body('fps').isInt({ min: 1, max: 60 }),
-    body('quality').isInt({ min: 10, max: 100 }),
-    body('brightness').isInt({ min: -2, max: 2 }),
-    body('contrast').isInt({ min: -2, max: 2 }),
-    body('saturation').isInt({ min: -2, max: 2 }),
-    body('sharpness').isInt({ min: -2, max: 2 }),
-    body('flip_h').isBoolean(),
-    body('flip_v').isBoolean(),
-    body('motion_detection').isBoolean(),
-    body('motion_sensitivity').isInt({ min: 1, max: 100 })
-], async (req, res) => {
-    try {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({
-                success: false,
-                errors: errors.array()
-            });
-        }
-
-        const {
-            enabled, resolution, fps, quality, brightness, contrast,
-            saturation, sharpness, flip_h, flip_v, motion_detection, motion_sensitivity
-        } = req.body;
-
-        const db = req.app.locals.db;
-        if (!db) {
-            throw new Error('Database not available');
-        }
-
-        // Update webcam settings
-        await db.run(`
-            UPDATE webcam SET
-                enabled = ?,
-                resolution = ?,
-                fps = ?,
-                quality = ?,
-                brightness = ?,
-                contrast = ?,
-                saturation = ?,
-                sharpness = ?,
-                flip_horizontal = ?,
-                flip_vertical = ?,
-                motion_detection = ?,
-                motion_sensitivity = ?,
-                timestamp = CURRENT_TIMESTAMP
-            WHERE id = 1
-        `, [
-            enabled ? 1 : 0,
-            resolution,
-            fps,
-            quality,
-            brightness,
-            contrast,
-            saturation,
-            sharpness,
-            flip_h ? 1 : 0,
-            flip_v ? 1 : 0,
-            motion_detection ? 1 : 0,
-            motion_sensitivity
-        ]);
-
-        // Send to device via MQTT
-        if (global.mqttService && global.mqttService.connected) {
-            try {
-                await global.mqttService.publishCommand('esp32-s3-1', 'configure-webcam', {
-                    resolution, fps, quality, brightness, contrast,
-                    saturation, sharpness, flip_h, flip_v,
-                    motion_detection, motion_sensitivity
-                });
-            } catch (mqttError) {
-                logger.error('Error sending webcam config to device:', mqttError);
-            }
-        }
-
-        logger.info('Webcam settings updated');
-
-        res.json({
-            success: true,
-            message: 'Webcam settings updated successfully'
-        });
-    } catch (error) {
-        logger.error('API update webcam settings error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to update webcam settings: ' + error.message
-        });
-    }
-});
+// ==================== SYSTEM SETTINGS ====================
 
 // Update system settings
 router.post('/system', [
@@ -583,6 +324,32 @@ router.post('/system', [
     }
 });
 
+// Restart server
+router.post('/restart', (req, res) => {
+    try {
+        logger.info('Server restart requested');
+        
+        res.json({
+            success: true,
+            message: 'Server is restarting...'
+        });
+
+        // Restart after delay
+        setTimeout(() => {
+            process.exit(0);
+        }, 2000);
+
+    } catch (error) {
+        logger.error('Restart error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to restart: ' + error.message
+        });
+    }
+});
+
+// ==================== NOTIFICATION SETTINGS ====================
+
 // Update notification settings
 router.post('/notifications', [
     body('email.enabled').isBoolean(),
@@ -595,14 +362,7 @@ router.post('/notifications', [
     body('email.to').optional().isEmail(),
     body('telegram.enabled').isBoolean(),
     body('telegram.botToken').optional(),
-    body('telegram.chatId').optional(),
-    body('pushover.enabled').isBoolean(),
-    body('pushover.appToken').optional(),
-    body('pushover.userKey').optional(),
-    body('webhook.enabled').isBoolean(),
-    body('webhook.url').optional().isURL(),
-    body('webhook.method').optional().isIn(['GET', 'POST', 'PUT']),
-    body('webhook.headers').optional().isObject()
+    body('telegram.chatId').optional()
 ], async (req, res) => {
     try {
         const errors = validationResult(req);
@@ -613,7 +373,7 @@ router.post('/notifications', [
             });
         }
 
-        const { email, telegram, pushover, webhook } = req.body;
+        const { email, telegram } = req.body;
         const db = req.app.locals.db;
 
         if (!db) {
@@ -624,7 +384,7 @@ router.post('/notifications', [
         await db.run(`
             INSERT OR REPLACE INTO settings (key, value, updated_at) 
             VALUES (?, ?, CURRENT_TIMESTAMP)
-        `, ['notifications', JSON.stringify({ email, telegram, pushover, webhook })]);
+        `, ['notifications', JSON.stringify({ email, telegram })]);
 
         logger.info('Notification settings updated');
 
@@ -641,11 +401,57 @@ router.post('/notifications', [
     }
 });
 
+// Test email
+router.post('/test/email', async (req, res) => {
+    try {
+        const { smtp, port, secure, user, pass, from, to } = req.body;
+
+        // In production, use nodemailer here
+        // For now, simulate success
+        setTimeout(() => {
+            res.json({
+                success: true,
+                message: 'Test email sent successfully'
+            });
+        }, 2000);
+
+    } catch (error) {
+        logger.error('Email test error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Test failed: ' + error.message
+        });
+    }
+});
+
+// Test Telegram
+router.post('/test/telegram', async (req, res) => {
+    try {
+        const { botToken, chatId } = req.body;
+
+        // Simulate success
+        setTimeout(() => {
+            res.json({
+                success: true,
+                message: 'Test Telegram message sent'
+            });
+        }, 2000);
+
+    } catch (error) {
+        logger.error('Telegram test error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Test failed: ' + error.message
+        });
+    }
+});
+
+// ==================== FIRMWARE SETTINGS ====================
+
 // Update firmware settings
 router.post('/firmware', [
     body('autoUpdate').isBoolean(),
-    body('updateChannel').isIn(['stable', 'beta', 'dev']),
-    body('updateUrl').optional().isURL()
+    body('updateChannel').isIn(['stable', 'beta', 'dev'])
 ], async (req, res) => {
     try {
         const errors = validationResult(req);
@@ -656,7 +462,7 @@ router.post('/firmware', [
             });
         }
 
-        const { autoUpdate, updateChannel, updateUrl } = req.body;
+        const { autoUpdate, updateChannel } = req.body;
         const db = req.app.locals.db;
 
         if (!db) {
@@ -665,14 +471,13 @@ router.post('/firmware', [
 
         // Get current firmware settings
         const currentSettings = await db.get('SELECT value FROM settings WHERE key = ?', ['firmware']);
-        let firmwareSettings = currentSettings ? JSON.parse(currentSettings.value) : {};
+        let firmwareSettings = currentSettings ? JSON.parse(currentSettings.value) : { currentVersion: '1.0.0' };
 
         // Update settings
         firmwareSettings = {
             ...firmwareSettings,
             autoUpdate,
-            updateChannel,
-            updateUrl: updateUrl || firmwareSettings.updateUrl
+            updateChannel
         };
 
         await db.run(`
@@ -712,8 +517,8 @@ router.post('/firmware/check', async (req, res) => {
             await global.mqttService.publishCommand('esp32-s3-1', 'check-firmware', {});
         }
 
-        // Simulate checking for updates (in production, this would query a real endpoint)
-        const availableVersion = '1.0.1'; // This would come from a real API
+        // Simulate checking for updates
+        const availableVersion = '1.0.1';
 
         // Update settings
         firmwareSettings.availableVersion = availableVersion;
@@ -765,8 +570,7 @@ router.post('/firmware/update', async (req, res) => {
         // Send OTA update command via MQTT
         if (global.mqttService && global.mqttService.connected) {
             await global.mqttService.publishCommand('esp32-s3-1', 'ota-update', {
-                version: firmwareSettings.availableVersion,
-                url: `${firmwareSettings.updateUrl}/v${firmwareSettings.availableVersion}/firmware.bin`
+                version: firmwareSettings.availableVersion
             });
 
             logger.info(`Firmware update initiated to version ${firmwareSettings.availableVersion}`);
@@ -793,198 +597,7 @@ router.post('/firmware/update', async (req, res) => {
     }
 });
 
-// Get device status
-router.get('/device-status', async (req, res) => {
-    try {
-        if (!global.modemService) {
-            return res.json({
-                success: true,
-                data: {
-                    online: false,
-                    signal: 0,
-                    battery: 0,
-                    charging: false,
-                    network: 'Unknown',
-                    operator: 'Unknown',
-                    sim: 'Unknown',
-                    iccid: '****',
-                    imei: '****',
-                    ip: '0.0.0.0',
-                    wifi: {
-                        connected: false,
-                        ssid: '',
-                        signal: 0,
-                        ip: ''
-                    },
-                    hotspot: {
-                        enabled: false,
-                        clients: 0
-                    },
-                    sdCard: 'Unknown',
-                    temperature: 0,
-                    uptime: '0s'
-                }
-            });
-        }
-
-        const modemStatus = global.modemService.getStatus();
-        
-        res.json({
-            success: true,
-            data: {
-                online: global.mqttService ? global.mqttService.connected : false,
-                signal: modemStatus.mobile.signalStrength || 0,
-                battery: modemStatus.system?.battery || 0,
-                charging: modemStatus.system?.charging || false,
-                network: modemStatus.mobile.networkType || 'No Service',
-                operator: modemStatus.mobile.operator || 'Unknown',
-                sim: modemStatus.mobile.simStatus || 'Ready',
-                iccid: modemStatus.mobile.iccid || '****',
-                imei: modemStatus.system?.imei || '****',
-                ip: modemStatus.mobile.ipAddress || '0.0.0.0',
-                wifi: {
-                    connected: modemStatus.wifiClient.connected,
-                    ssid: modemStatus.wifiClient.ssid || '',
-                    signal: modemStatus.wifiClient.signalStrength || 0,
-                    ip: modemStatus.wifiClient.ipAddress || ''
-                },
-                hotspot: {
-                    enabled: modemStatus.wifiHotspot.enabled,
-                    clients: modemStatus.wifiHotspot.connectedClients || 0
-                },
-                sdCard: modemStatus.system?.sdCard || 'Not detected',
-                temperature: modemStatus.system?.temperature || 0,
-                uptime: modemStatus.system?.uptime || '0s'
-            }
-        });
-    } catch (error) {
-        logger.error('API device status error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to get device status: ' + error.message
-        });
-    }
-});
-
-// Test MQTT connection
-router.post('/test/mqtt', async (req, res) => {
-    try {
-        const { host, port, username, password } = req.body;
-
-        // Create temporary MQTT client for testing
-        const mqtt = require('mqtt');
-        
-        const client = mqtt.connect(`mqtt://${host}`, {
-            port: parseInt(port),
-            username,
-            password,
-            connectTimeout: 10000,
-            reconnectPeriod: 0
-        });
-
-        const timeout = setTimeout(() => {
-            client.end();
-            res.json({
-                success: false,
-                message: 'Connection timeout'
-            });
-        }, 10000);
-
-        client.on('connect', () => {
-            clearTimeout(timeout);
-            client.end();
-            res.json({
-                success: true,
-                message: 'MQTT connection successful'
-            });
-        });
-
-        client.on('error', (error) => {
-            clearTimeout(timeout);
-            client.end();
-            res.json({
-                success: false,
-                message: 'Connection failed: ' + error.message
-            });
-        });
-
-    } catch (error) {
-        logger.error('MQTT test error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Test failed: ' + error.message
-        });
-    }
-});
-
-// Test email notification
-router.post('/test/email', async (req, res) => {
-    try {
-        const { smtp, port, secure, user, pass, from, to } = req.body;
-
-        // This would use nodemailer to send a test email
-        // For now, just simulate success
-        setTimeout(() => {
-            res.json({
-                success: true,
-                message: 'Test email sent successfully'
-            });
-        }, 2000);
-
-    } catch (error) {
-        logger.error('Email test error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Test failed: ' + error.message
-        });
-    }
-});
-
-// Test Telegram notification
-router.post('/test/telegram', async (req, res) => {
-    try {
-        const { botToken, chatId } = req.body;
-
-        // This would use Telegram Bot API to send a test message
-        // For now, just simulate success
-        setTimeout(() => {
-            res.json({
-                success: true,
-                message: 'Test Telegram message sent'
-            });
-        }, 2000);
-
-    } catch (error) {
-        logger.error('Telegram test error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Test failed: ' + error.message
-        });
-    }
-});
-
-// Test Pushover notification
-router.post('/test/pushover', async (req, res) => {
-    try {
-        const { appToken, userKey } = req.body;
-
-        // This would use Pushover API to send a test message
-        // For now, just simulate success
-        setTimeout(() => {
-            res.json({
-                success: true,
-                message: 'Test Pushover message sent'
-            });
-        }, 2000);
-
-    } catch (error) {
-        logger.error('Pushover test error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Test failed: ' + error.message
-        });
-    }
-});
+// ==================== BACKUP FUNCTIONS ====================
 
 // Create backup
 router.post('/backup/create', async (req, res) => {
@@ -1142,72 +755,7 @@ router.delete('/backups/:filename', (req, res) => {
     }
 });
 
-// Restart server
-router.post('/restart', (req, res) => {
-    try {
-        logger.info('Server restart requested');
-        
-        res.json({
-            success: true,
-            message: 'Server is restarting...'
-        });
-
-        // Restart after delay
-        setTimeout(() => {
-            process.exit(0);
-        }, 2000);
-
-    } catch (error) {
-        logger.error('Restart error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to restart: ' + error.message
-        });
-    }
-});
-
-// Factory reset
-router.post('/factory-reset', async (req, res) => {
-    try {
-        const db = req.app.locals.db;
-        if (!db) {
-            throw new Error('Database not available');
-        }
-
-        // Clear all tables except users
-        await db.exec(`
-            DELETE FROM sms;
-            DELETE FROM calls;
-            DELETE FROM contacts;
-            DELETE FROM ussd;
-            DELETE FROM settings;
-            DELETE FROM sessions;
-            UPDATE webcam SET enabled = 0, resolution = '640x480', fps = 15, quality = 80,
-                            brightness = 0, contrast = 0, saturation = 0, sharpness = 0,
-                            flip_horizontal = 0, flip_vertical = 0, motion_detection = 0,
-                            motion_sensitivity = 50 WHERE id = 1;
-        `);
-
-        logger.info('Factory reset completed');
-
-        res.json({
-            success: true,
-            message: 'Factory reset completed. Server will restart.'
-        });
-
-        // Restart after delay
-        setTimeout(() => {
-            process.exit(0);
-        }, 3000);
-
-    } catch (error) {
-        logger.error('Factory reset error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to reset: ' + error.message
-        });
-    }
-});
+// ==================== LOGS ====================
 
 // Get logs
 router.get('/logs', (req, res) => {
@@ -1222,7 +770,7 @@ router.get('/logs', (req, res) => {
         }
 
         const logs = fs.readFileSync(logFile, 'utf8');
-        const lines = logs.split('\n').slice(-1000).join('\n'); // Last 1000 lines
+        const lines = logs.split('\n').slice(-500).join('\n');
 
         res.json({
             success: true,
@@ -1453,7 +1001,7 @@ router.delete('/users/:id', async (req, res) => {
         }
 
         // Check if user is the last admin
-        if (id == 1) { // Assuming admin user has id 1
+        if (id == 1) {
             return res.status(400).json({
                 success: false,
                 message: 'Cannot delete the main admin user'
@@ -1480,6 +1028,56 @@ router.delete('/users/:id', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to delete user: ' + error.message
+        });
+    }
+});
+
+// Factory reset (clears all data except users)
+router.post('/factory-reset', async (req, res) => {
+    try {
+        const db = req.app.locals.db;
+        if (!db) {
+            throw new Error('Database not available');
+        }
+
+        // Clear all tables except users
+        await db.exec(`
+            DELETE FROM sms;
+            DELETE FROM calls;
+            DELETE FROM contacts;
+            DELETE FROM ussd;
+            DELETE FROM gps_locations;
+            DELETE FROM gpio_config;
+            DELETE FROM gpio_history;
+            DELETE FROM gpio_groups;
+            DELETE FROM gpio_rules;
+            DELETE FROM test_results;
+            DELETE FROM test_steps;
+            DELETE FROM settings;
+            DELETE FROM sessions;
+            DELETE FROM notifications;
+            DELETE FROM mqtt_logs;
+            DELETE FROM system_logs;
+            DELETE FROM backups;
+        `);
+
+        logger.info('Factory reset completed');
+
+        res.json({
+            success: true,
+            message: 'Factory reset completed. Server will restart.'
+        });
+
+        // Restart after delay
+        setTimeout(() => {
+            process.exit(0);
+        }, 3000);
+
+    } catch (error) {
+        logger.error('Factory reset error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to reset: ' + error.message
         });
     }
 });

@@ -1,1020 +1,658 @@
-// Device Test Center - Complete Test Functions
-(function() {
+// Test Module JavaScript
+(function () {
     'use strict';
 
-    // ==================== STATE MANAGEMENT ====================
-    let testState = {
-        currentTest: null,
-        isRunning: false,
-        testResults: [],
-        successCount: 0,
-        failCount: 0,
-        gpioStates: {},
-        audioContext: null,
-        mediaStream: null,
-        micProcessor: null,
-        testInterval: null,
-        deviceId: 'esp32-s3-1',
-        socket: null,
-        currentTestName: '',
-        testProgress: 0
+    console.log('Test.js loaded - ' + new Date().toISOString());
+
+    // State
+    let categories = {};
+    let runningTests = new Map();
+    let testHistory = [];
+    let currentDeviceId = 'esp32-s3-1';
+    let updateInterval = null;
+    let selectedTest = null;
+    let testParameters = {};
+
+    // DOM Elements
+    const elements = {
+        testConsole: document.getElementById('testConsole'),
+        testCategory: document.getElementById('testCategory'),
+        testSelector: document.getElementById('testSelector'),
+        testParam: document.getElementById('testParam'),
+        runTestBtn: document.getElementById('runTestBtn'),
+        stopTestBtn: document.getElementById('stopTestBtn'),
+        runAllBtn: document.getElementById('runAllBtn'),
+        clearResultsBtn: document.getElementById('clearResultsBtn'),
+        testProgress: document.getElementById('testProgress'),
+        testProgressBar: document.getElementById('testProgressBar'),
+        testStatus: document.getElementById('testStatus'),
+        currentTestName: document.getElementById('currentTestName'),
+        liveTestResult: document.getElementById('liveTestResult'),
+        testSuccessCount: document.getElementById('testSuccessCount'),
+        testFailCount: document.getElementById('testFailCount'),
+        testTotalCount: document.getElementById('testTotalCount'),
+        deviceTestStatus: document.getElementById('deviceTestStatus'),
+        deviceTestStatusText: document.getElementById('deviceTestStatusText'),
+        detailedResults: document.getElementById('detailedResults'),
+        resultTimestamp: document.getElementById('resultTimestamp'),
+        parameterContainer: document.getElementById('testParameters')
     };
 
-    // ==================== INITIALIZATION ====================
-    document.addEventListener('DOMContentLoaded', function() {
-        initTestCenter();
-        updateTestList();
-        checkDeviceStatus();
-        initSocket();
-    });
-
-    function initTestCenter() {
-        // Initialize audio context
-        try {
-            testState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        } catch (e) {
-            console.warn('Audio context not available');
-        }
-
-        // Initialize GPIO states
-        for (let i = 0; i < 20; i++) {
-            testState.gpioStates[i] = {
-                mode: 'in',
-                value: 0,
-                led: document.getElementById(`gpio-led-${i}`)
-            };
-        }
-
-        // Add initial console message
-        addToConsole('Test Center initialized. Select a test from the dropdown.', 'info');
+    // Initialize
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
     }
 
-    function initSocket() {
-        if (typeof io !== 'undefined') {
-            testState.socket = io();
-            
-            testState.socket.on('connect', () => {
-                addToConsole('Socket connected - real-time updates enabled', 'success');
-            });
-            
-            testState.socket.on('gpio:status', (data) => {
-                updateGPIOFromDevice(data);
-            });
-            
-            testState.socket.on('test:result', (data) => {
-                handleTestResult(data);
-            });
-            
-            testState.socket.on('device:status', (data) => {
-                updateDeviceStatus(data);
-            });
-        }
+    function init() {
+        console.log('Initializing Test Center...');
+
+        loadCategories();
+        loadTestHistory();
+        attachEventListeners();
+        attachSocketListeners();
+        startPeriodicUpdate();
+        updateDeviceStatus();
     }
 
-    // ==================== CONSOLE FUNCTIONS ====================
-    function addToConsole(message, type = 'info', data = null) {
-        const console = document.getElementById('testConsole');
-        const timestamp = new Date().toLocaleTimeString();
-        let color = '#28a745';
-        let icon = 'bi-info-circle';
-        
-        if (type === 'success') {
-            color = '#28a745';
-            icon = 'bi-check-circle';
-        } else if (type === 'error') {
-            color = '#dc3545';
-            icon = 'bi-exclamation-triangle';
-        } else if (type === 'warning') {
-            color = '#ffc107';
-            icon = 'bi-exclamation-circle';
-        }
-        
-        const line = document.createElement('div');
-        line.className = 'p-1 console-line';
-        line.style.borderBottom = '1px solid #333';
-        line.innerHTML = `<span style="color: #888;">[${timestamp}]</span> <i class="bi ${icon}" style="color: ${color};"></i> <span style="color: ${color};">${message}</span>`;
-        
-        console.appendChild(line);
-        console.scrollTop = console.scrollHeight;
-        
-        // Add to detailed results
-        addDetailedResult(message, type, data);
-        
-        // Update counters
-        if (type === 'success') {
-            testState.successCount++;
-            document.getElementById('testSuccessCount').textContent = testState.successCount;
-        } else if (type === 'error') {
-            testState.failCount++;
-            document.getElementById('testFailCount').textContent = testState.failCount;
-        }
-        document.getElementById('testTotalCount').textContent = testState.successCount + testState.failCount;
-    }
+    // ==================== DATA LOADING ====================
 
-    function addDetailedResult(message, type = 'info', data = null) {
-        const results = document.getElementById('detailedResults');
-        const timestamp = new Date().toLocaleTimeString();
-        
-        const div = document.createElement('div');
-        div.className = `test-result ${type} small mb-1 p-1 border-start border-3 border-${type === 'error' ? 'danger' : (type === 'success' ? 'success' : 'info')}`;
-        div.innerHTML = `<i class="bi ${type === 'error' ? 'bi-exclamation-triangle-fill' : (type === 'success' ? 'bi-check-circle-fill' : 'bi-info-circle-fill')} text-${type === 'error' ? 'danger' : (type === 'success' ? 'success' : 'info')} me-1"></i> ${message} <span class="test-time text-muted float-end">${timestamp}</span>`;
-        
-        if (data) {
-            div.setAttribute('data-test-data', JSON.stringify(data));
-        }
-        
-        results.prepend(div);
-        
-        // Keep only last 50 results
-        while (results.children.length > 50) {
-            results.removeChild(results.lastChild);
-        }
-        
-        document.getElementById('resultTimestamp').textContent = `Last update: ${timestamp}`;
-    }
-
-    window.clearTestResults = function() {
-        document.getElementById('testConsole').innerHTML = '<div class="p-1 text-success console-line"><span class="text-muted">[System]</span> Test console cleared.</div>';
-        document.getElementById('detailedResults').innerHTML = '<div class="text-muted">No tests run yet. Select a test from the dropdown.</div>';
-        testState.successCount = 0;
-        testState.failCount = 0;
-        document.getElementById('testSuccessCount').textContent = '0';
-        document.getElementById('testFailCount').textContent = '0';
-        document.getElementById('testTotalCount').textContent = '0';
-        updateTestProgress(0);
-        document.getElementById('currentTestName').textContent = 'None';
-        document.getElementById('testStatus').textContent = 'Idle';
-        document.getElementById('testStatus').className = 'badge bg-secondary';
-        addToConsole('Test console cleared', 'info');
-    };
-
-    window.exportTestLog = function() {
-        const results = document.getElementById('detailedResults').innerText;
-        const console = document.getElementById('testConsole').innerText;
-        const fullLog = `TEST RESULTS - ${new Date().toLocaleString()}\n${'='.repeat(50)}\n\nCONSOLE LOG:\n${console}\n\nDETAILED RESULTS:\n${results}`;
-        
-        const blob = new Blob([fullLog], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `test-results-${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
-        addToConsole('Test log exported successfully', 'success');
-    };
-
-    function updateTestProgress(percent) {
-        testState.testProgress = percent;
-        document.getElementById('testProgress').style.width = percent + '%';
-    }
-
-    function updateCurrentTest(name, status) {
-        testState.currentTestName = name;
-        document.getElementById('currentTestName').textContent = name || 'None';
-        
-        const statusEl = document.getElementById('testStatus');
-        statusEl.textContent = status || 'Idle';
-        
-        if (status === 'Running') {
-            statusEl.className = 'badge bg-primary';
-        } else if (status === 'Success') {
-            statusEl.className = 'badge bg-success';
-        } else if (status === 'Failed') {
-            statusEl.className = 'badge bg-danger';
-        } else {
-            statusEl.className = 'badge bg-secondary';
-        }
-    }
-
-    // ==================== DEVICE STATUS ====================
-    function checkDeviceStatus() {
-        fetch('/api/status')
+    function loadCategories() {
+        fetch('/api/test/categories')
             .then(response => response.json())
             .then(data => {
-                const statusEl = document.getElementById('deviceTestStatus');
-                const statusText = document.getElementById('deviceTestStatusText');
-                
-                if (data.success && data.data.online) {
-                    statusEl.className = 'badge bg-success d-flex align-items-center';
-                    statusText.textContent = 'Device Online';
-                    addToConsole('Device is online and ready for testing', 'success');
-                } else {
-                    statusEl.className = 'badge bg-danger d-flex align-items-center';
-                    statusText.textContent = 'Device Offline';
-                    addToConsole('Device is offline - tests will be simulated', 'warning');
+                if (data.success) {
+                    categories = data.data;
+                    populateCategoryDropdown();
                 }
             })
-            .catch(() => {
-                document.getElementById('deviceTestStatus').className = 'badge bg-warning d-flex align-items-center';
-                document.getElementById('deviceTestStatusText').textContent = 'Status Unknown';
-                addToConsole('Cannot determine device status - check connection', 'error');
+            .catch(error => {
+                console.error('Error loading categories:', error);
+                addToConsole('Failed to load test categories', 'error');
             });
     }
 
-    function updateDeviceStatus(data) {
-        if (data.online) {
-            addToConsole('Device status update: Online', 'success');
-        } else {
-            addToConsole('Device status update: Offline', 'warning');
-        }
+    function loadTestHistory() {
+        fetch(`/api/test/results?deviceId=${currentDeviceId}&limit=50`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    testHistory = data.data;
+                    updateHistoryStats();
+                    displayTestHistory();
+                }
+            })
+            .catch(console.error);
     }
 
-    // ==================== TEST SELECTION ====================
-    window.updateTestList = function() {
-        const category = document.getElementById('testCategory').value;
-        const selector = document.getElementById('testSelector');
-        
-        let options = '<option value="">Select a test to run...</option>';
-        
-        const tests = getTestsByCategory(category);
-        tests.forEach(test => {
-            options += `<option value="${test.id}" data-params="${test.params || ''}">${test.name}</option>`;
-        });
-        
-        selector.innerHTML = options;
-    };
+    function populateCategoryDropdown() {
+        if (!elements.testCategory) return;
 
-    function getTestsByCategory(category) {
-        const allTests = [
-            // Communication Tests
-            { id: 'sms', name: '📱 Send SMS', category: 'communication', params: 'phone' },
-            { id: 'call', name: '📞 Make Call', category: 'communication', params: 'phone' },
-            { id: 'ussd', name: '💬 Send USSD', category: 'communication', params: 'code' },
-            { id: 'ussd-balance', name: '💰 Check Balance', category: 'communication', params: '' },
-            
-            // Hardware Tests
-            { id: 'camera', name: '📸 Camera Capture', category: 'hardware', params: '' },
-            { id: 'camera-stream', name: '📹 Start Stream', category: 'hardware', params: '' },
-            { id: 'led-2', name: '💡 LED 2 Test', category: 'hardware', params: 'duration' },
-            { id: 'led-4', name: '💡 LED 4 Test', category: 'hardware', params: 'duration' },
-            { id: 'led-5', name: '💡 LED 5 Test', category: 'hardware', params: 'duration' },
-            { id: 'led-12', name: '💡 LED 12 Test', category: 'hardware', params: 'duration' },
-            { id: 'rgb-led', name: '🌈 RGB LED Test', category: 'hardware', params: 'color' },
-            { id: 'buzzer', name: '🔔 Buzzer Test', category: 'hardware', params: 'freq,duration' },
-            { id: 'button-0', name: '🔘 Button GPIO0', category: 'hardware', params: '' },
-            { id: 'button-2', name: '🔘 Button GPIO2', category: 'hardware', params: '' },
-            
-            // Audio Tests
-            { id: 'mic-level', name: '🎤 Microphone Level', category: 'audio', params: '' },
-            { id: 'mic-record-3', name: '🎤 Record 3s', category: 'audio', params: '' },
-            { id: 'mic-record-5', name: '🎤 Record 5s', category: 'audio', params: '' },
-            { id: 'mic-continuous', name: '🎤 Continuous Mic', category: 'audio', params: '' },
-            { id: 'tone-440', name: '🔊 440Hz Tone', category: 'audio', params: 'duration' },
-            { id: 'tone-1000', name: '🔊 1kHz Tone', category: 'audio', params: 'duration' },
-            { id: 'tone-2000', name: '🔊 2kHz Tone', category: 'audio', params: 'duration' },
-            { id: 'sweep', name: '📊 Frequency Sweep', category: 'audio', params: '' },
-            { id: 'playback', name: '▶️ Play Test Audio', category: 'audio', params: '' },
-            
-            // GPIO Tests - Individual Pins
-            ...Array.from({ length: 20 }, (_, i) => [
-                { id: `gpio-${i}-read`, name: `🔌 GPIO${i} Read`, category: 'gpio', params: '' },
-                { id: `gpio-${i}-high`, name: `🔌 GPIO${i} Set HIGH`, category: 'gpio', params: '' },
-                { id: `gpio-${i}-low`, name: `🔌 GPIO${i} Set LOW`, category: 'gpio', params: '' },
-                { id: `gpio-${i}-pulse`, name: `🔌 GPIO${i} Pulse`, category: 'gpio', params: 'duration' }
-            ]).flat(),
-            
-            // Sensor Tests
-            { id: 'temperature', name: '🌡️ Temperature', category: 'sensors', params: '' },
-            { id: 'humidity', name: '💧 Humidity', category: 'sensors', params: '' },
-            { id: 'pressure', name: '📊 Pressure', category: 'sensors', params: '' },
-            { id: 'light', name: '☀️ Light Level', category: 'sensors', params: '' },
-            { id: 'hall', name: '🧲 Hall Effect', category: 'sensors', params: '' },
-            
-            // Network Tests
-            { id: 'gps', name: '🛰️ GPS Location', category: 'network', params: '' },
-            { id: 'gps-status', name: '📡 GPS Status', category: 'network', params: '' },
-            { id: 'signal', name: '📶 Signal Strength', category: 'network', params: '' },
-            { id: 'wifi-scan', name: '📡 WiFi Scan', category: 'network', params: '' },
-            { id: 'cell-info', name: '📱 Cell Info', category: 'network', params: '' },
-            { id: 'ping', name: '🌐 Ping Test', category: 'network', params: 'host' },
-            
-            // Storage Tests
-            { id: 'sd-info', name: '💾 SD Card Info', category: 'storage', params: '' },
-            { id: 'sd-read', name: '📖 SD Read Test', category: 'storage', params: 'file' },
-            { id: 'sd-write', name: '📝 SD Write Test', category: 'storage', params: 'content' },
-            { id: 'sd-speed', name: '⚡ SD Speed Test', category: 'storage', params: '' },
-            
-            // Power Tests
-            { id: 'battery', name: '🔋 Battery Level', category: 'power', params: '' },
-            { id: 'battery-status', name: '⚡ Battery Status', category: 'power', params: '' },
-            { id: 'charging', name: '🔌 Charging Status', category: 'power', params: '' },
-            { id: 'voltage', name: '📊 Voltage Reading', category: 'power', params: '' }
-        ];
+        let options = '<option value="">Select Category</option>';
         
-        if (category === 'all') {
-            return allTests;
+        Object.entries(categories).forEach(([key, category]) => {
+            options += `<option value="${key}">${category.icon ? `<i class="bi ${category.icon}"></i>` : ''} ${category.name}</option>`;
+        });
+
+        elements.testCategory.innerHTML = options;
+    }
+
+    function updateTestList() {
+        if (!elements.testCategory || !elements.testSelector) return;
+
+        const category = elements.testCategory.value;
+        elements.testSelector.innerHTML = '<option value="">Select a test...</option>';
+
+        if (!category || !categories[category]) return;
+
+        categories[category].tests.forEach(test => {
+            const option = document.createElement('option');
+            option.value = test.id;
+            option.innerHTML = `<i class="bi ${test.icon}"></i> ${test.name}`;
+            option.title = test.description;
+            elements.testSelector.appendChild(option);
+        });
+    }
+
+    function showTestParameters() {
+        const testId = elements.testSelector?.value;
+        if (!testId || !AVAILABLE_TESTS[testId]) {
+            elements.parameterContainer.innerHTML = '';
+            return;
         }
-        return allTests.filter(test => test.category === category);
+
+        const test = AVAILABLE_TESTS[testId];
+        selectedTest = test;
+
+        if (!test.parameters || test.parameters.length === 0) {
+            elements.parameterContainer.innerHTML = '<div class="text-muted small">No parameters required</div>';
+            return;
+        }
+
+        let html = '<div class="row g-2">';
+        test.parameters.forEach(param => {
+            html += '<div class="col-6">';
+            html += `<label class="small text-muted">${param.name}</label>`;
+
+            if (param.type === 'select') {
+                html += `<select class="form-select form-select-sm test-param" data-param="${param.name}">`;
+                param.options.forEach(opt => {
+                    const selected = opt === param.default ? 'selected' : '';
+                    html += `<option value="${opt}" ${selected}>${opt}</option>`;
+                });
+                html += '</select>';
+            } else if (param.type === 'number') {
+                html += `<input type="number" class="form-control form-control-sm test-param" 
+                         data-param="${param.name}" value="${param.default}" 
+                         min="${param.min}" max="${param.max}">`;
+            } else if (param.type === 'password') {
+                html += `<input type="password" class="form-control form-control-sm test-param" 
+                         data-param="${param.name}" placeholder="${param.required ? 'Required' : 'Optional'}">`;
+            } else {
+                html += `<input type="text" class="form-control form-control-sm test-param" 
+                         data-param="${param.name}" value="${param.default || ''}" 
+                         placeholder="${param.required ? 'Required' : 'Optional'}">`;
+            }
+
+            html += '</div>';
+        });
+        html += '</div>';
+
+        elements.parameterContainer.innerHTML = html;
     }
 
     // ==================== TEST EXECUTION ====================
-    window.runSelectedTest = function() {
-        const selector = document.getElementById('testSelector');
-        const testId = selector.value;
-        const param = document.getElementById('testParam').value;
-        
+
+    function runSelectedTest() {
+        const testId = elements.testSelector?.value;
         if (!testId) {
             addToConsole('Please select a test to run', 'warning');
             return;
         }
-        
-        runTest(testId, param);
-    };
 
-    window.runAllTests = function() {
-        addToConsole('Starting all tests sequentially...', 'info');
-        updateCurrentTest('Running All Tests', 'Running');
-        
-        const categories = ['communication', 'hardware', 'audio', 'sensors', 'network', 'storage', 'power'];
-        let currentCategory = 0;
-        
-        function runNextCategory() {
-            if (currentCategory < categories.length) {
-                const cat = categories[currentCategory];
-                addToConsole(`Running ${cat} tests...`, 'info');
-                const tests = getTestsByCategory(cat);
-                runTestSuite(tests, 0, () => {
-                    currentCategory++;
-                    runNextCategory();
-                });
-            } else {
-                addToConsole('All tests completed!', 'success');
-                updateCurrentTest('All Tests', 'Success');
-            }
-        }
-        
-        runNextCategory();
-    };
-
-    function runTestSuite(tests, index, callback) {
-        if (index >= tests.length) {
-            callback();
-            return;
-        }
-        
-        const test = tests[index];
-        addToConsole(`Running: ${test.name}`, 'info');
-        updateTestProgress((index / tests.length) * 100);
-        
-        runTest(test.id, '').then(() => {
-            setTimeout(() => {
-                runTestSuite(tests, index + 1, callback);
-            }, 500);
-        }).catch(() => {
-            setTimeout(() => {
-                runTestSuite(tests, index + 1, callback);
-            }, 500);
-        });
-    }
-
-    window.stopCurrentTest = function() {
-        if (testState.testInterval) {
-            clearInterval(testState.testInterval);
-            testState.testInterval = null;
-        }
-        testState.isRunning = false;
-        updateCurrentTest(testState.currentTestName, 'Stopped');
-        addToConsole('Test stopped by user', 'warning');
-        updateTestProgress(0);
-    };
-
-    window.quickTest = function(testId) {
-        runTest(testId, '');
-    };
-
-    async function runTest(testId, param) {
-        testState.isRunning = true;
-        updateCurrentTest(testId, 'Running');
-        updateTestProgress(10);
-        
-        addToConsole(`Starting test: ${testId}${param ? ' with param: ' + param : ''}`, 'info');
-        
-        // Parse test type and execute appropriate function
-        if (testId.startsWith('gpio-')) {
-            await runGPIOTest(testId, param);
-        } else if (testId.startsWith('led-')) {
-            await runLEDTest(testId, param);
-        } else if (testId.startsWith('mic-')) {
-            await runMicTest(testId, param);
-        } else if (testId.startsWith('tone-') || testId === 'sweep') {
-            await runAudioTest(testId, param);
-        } else {
-            await runAPITest(testId, param);
-        }
-        
-        updateTestProgress(100);
-        setTimeout(() => {
-            updateTestProgress(0);
-            testState.isRunning = false;
-            if (testState.failCount > testState.successCount) {
-                updateCurrentTest(testId, 'Failed');
-            } else {
-                updateCurrentTest(testId, 'Success');
-            }
-        }, 500);
-    }
-
-    // ==================== GPIO TESTS ====================
-    async function runGPIOTest(testId, param) {
-        const parts = testId.split('-');
-        const pin = parseInt(parts[1]);
-        const action = parts[2];
-        
-        updateTestProgress(30);
-        
-        try {
-            if (action === 'read') {
-                await readPin(pin);
-            } else if (action === 'high') {
-                await setPinHigh(pin);
-            } else if (action === 'low') {
-                await setPinLow(pin);
-            } else if (action === 'pulse') {
-                const duration = parseInt(param) || 500;
-                await pulsePin(pin, duration);
-            }
-            updateTestProgress(80);
-        } catch (error) {
-            addToConsole(`GPIO test failed: ${error.message}`, 'error');
-        }
-    }
-
-    window.setPinHigh = function(pin) {
-        return new Promise((resolve) => {
-            updatePinLED(pin, true);
-            addToConsole(`GPIO${pin} set HIGH`, 'success', { pin, value: 1 });
+        // Collect parameters
+        const parameters = {};
+        document.querySelectorAll('.test-param').forEach(el => {
+            const paramName = el.dataset.param;
+            let value = el.value;
             
-            // Simulate API call
-            if (testState.socket) {
-                testState.socket.emit('gpio:write', { pin, value: 1 });
+            if (el.type === 'number') {
+                value = parseFloat(value);
+            } else if (el.type === 'checkbox') {
+                value = el.checked;
             }
             
-            document.getElementById(`gpio-value-${pin}`).textContent = 'HIGH';
-            resolve();
+            parameters[paramName] = value;
         });
-    };
 
-    window.setPinLow = function(pin) {
-        return new Promise((resolve) => {
-            updatePinLED(pin, false);
-            addToConsole(`GPIO${pin} set LOW`, 'success', { pin, value: 0 });
-            
-            if (testState.socket) {
-                testState.socket.emit('gpio:write', { pin, value: 0 });
-            }
-            
-            document.getElementById(`gpio-value-${pin}`).textContent = 'LOW';
-            resolve();
-        });
-    };
-
-    window.readPin = function(pin) {
-        return new Promise((resolve) => {
-            const value = Math.random() > 0.5 ? 1 : 0;
-            updatePinLED(pin, value === 1);
-            addToConsole(`GPIO${pin} read: ${value === 1 ? 'HIGH' : 'LOW'}`, 'info', { pin, value });
-            document.getElementById(`gpio-value-${pin}`).textContent = value === 1 ? 'HIGH' : 'LOW';
-            resolve();
-        });
-    };
-
-    function pulsePin(pin, duration) {
-        return new Promise((resolve) => {
-            addToConsole(`Pulsing GPIO${pin} for ${duration}ms`, 'info');
-            setPinHigh(pin);
-            setTimeout(() => {
-                setPinLow(pin);
-                resolve();
-            }, duration);
-        });
+        runTest(testId, parameters);
     }
 
-    window.setPinMode = function(pin, mode) {
-        addToConsole(`GPIO${pin} mode set to ${mode}`, 'info', { pin, mode });
-        testState.gpioStates[pin].mode = mode;
-        
-        if (testState.socket) {
-            testState.socket.emit('gpio:mode', { pin, mode });
+    function runTest(testId, parameters = {}) {
+        const test = AVAILABLE_TESTS[testId];
+        if (!test) return;
+
+        addToConsole(`Starting test: ${test.name}...`, 'info');
+
+        // Disable run button
+        if (elements.runTestBtn) {
+            elements.runTestBtn.disabled = true;
+            elements.runTestBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Running...';
         }
-    };
 
-    window.scanAllPins = function() {
-        addToConsole('Scanning all GPIO pins...', 'info');
-        for (let i = 0; i < 20; i++) {
-            setTimeout(() => readPin(i), i * 100);
+        // Enable stop button
+        if (elements.stopTestBtn) {
+            elements.stopTestBtn.disabled = false;
         }
-    };
 
-    window.testAllOutputs = function() {
-        addToConsole('Testing all output pins sequentially...', 'info');
-        let pin = 0;
-        
-        function testNext() {
-            if (pin < 20) {
-                setPinHigh(pin);
-                setTimeout(() => {
-                    setPinLow(pin);
-                    pin++;
-                    setTimeout(testNext, 200);
-                }, 500);
-            }
-        }
-        testNext();
-    };
-
-    function updatePinLED(pin, high) {
-        const led = document.getElementById(`gpio-led-${pin}`);
-        if (led) {
-            if (high) {
-                led.style.background = '#28a745';
-                led.style.boxShadow = '0 0 8px #28a745';
-                led.classList.add('high');
-                led.classList.remove('low');
-            } else {
-                led.style.background = '#dc3545';
-                led.style.boxShadow = '0 0 8px #dc3545';
-                led.classList.add('low');
-                led.classList.remove('high');
-            }
-        }
-    }
-
-    function updateGPIOFromDevice(data) {
-        if (data.pins) {
-            Object.entries(data.pins).forEach(([pin, value]) => {
-                updatePinLED(parseInt(pin), value === 1);
-                document.getElementById(`gpio-value-${pin}`).textContent = value === 1 ? 'HIGH' : 'LOW';
-            });
-        }
-    }
-
-    // ==================== LED TESTS ====================
-    async function runLEDTest(testId, param) {
-        const pin = parseInt(testId.split('-')[1]);
-        const duration = parseInt(param) || 500;
-        
-        addToConsole(`Testing LED on GPIO${pin} for ${duration}ms`, 'info');
-        await setPinHigh(pin);
-        
-        setTimeout(async () => {
-            await setPinLow(pin);
-            addToConsole(`LED test on GPIO${pin} complete`, 'success');
-        }, duration);
-    }
-
-    window.testLED = function(pin, duration) {
-        runLEDTest(`led-${pin}`, duration.toString());
-    };
-
-    window.testRGBLED = function() {
-        addToConsole('Testing RGB LED - cycling colors', 'info');
-        const colors = ['red', 'green', 'blue', 'yellow', 'cyan', 'magenta', 'white'];
-        let index = 0;
-        
-        const interval = setInterval(() => {
-            if (index >= colors.length) {
-                clearInterval(interval);
-                addToConsole('RGB LED test complete', 'success');
-                return;
-            }
-            addToConsole(`RGB LED color: ${colors[index]}`, 'info');
-            index++;
-        }, 500);
-        
-        testState.testInterval = interval;
-    };
-
-    window.testAllLEDs = function() {
-        addToConsole('Testing all LEDs sequentially', 'info');
-        const leds = [2, 4, 5, 12];
-        let index = 0;
-        
-        function nextLED() {
-            if (index < leds.length) {
-                testLED(leds[index], 300);
-                index++;
-                setTimeout(nextLED, 400);
-            }
-        }
-        nextLED();
-    };
-
-    // ==================== AUDIO TESTS ====================
-    async function runMicTest(testId, param) {
-        if (testId === 'mic-level') {
-            await testMicLevel();
-        } else if (testId === 'mic-record-3') {
-            await testMicRecord(3);
-        } else if (testId === 'mic-record-5') {
-            await testMicRecord(5);
-        } else if (testId === 'mic-continuous') {
-            await testMicContinuous();
-        }
-    }
-
-    window.testMicLevel = function() {
-        return new Promise((resolve) => {
-            addToConsole('Testing microphone level...', 'info');
-            
-            navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(stream => {
-                    const audioContext = new AudioContext();
-                    const source = audioContext.createMediaStreamSource(stream);
-                    const analyser = audioContext.createAnalyser();
-                    source.connect(analyser);
-                    
-                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                    
-                    let maxLevel = 0;
-                    const checkInterval = setInterval(() => {
-                        analyser.getByteFrequencyData(dataArray);
-                        const level = Math.max(...dataArray) / 255;
-                        if (level > maxLevel) maxLevel = level;
-                        
-                        if (level > 0.1) {
-                            clearInterval(checkInterval);
-                            stream.getTracks().forEach(track => track.stop());
-                            audioContext.close();
-                            addToConsole(`Microphone working - peak level: ${Math.round(maxLevel * 100)}%`, 'success');
-                            resolve();
-                        }
-                    }, 100);
-                    
-                    setTimeout(() => {
-                        clearInterval(checkInterval);
-                        stream.getTracks().forEach(track => track.stop());
-                        audioContext.close();
-                        if (maxLevel > 0.05) {
-                            addToConsole(`Microphone detected - level: ${Math.round(maxLevel * 100)}%`, 'success');
-                        } else {
-                            addToConsole('Microphone test completed - no significant input detected', 'warning');
-                        }
-                        resolve();
-                    }, 3000);
-                })
-                .catch(err => {
-                    addToConsole(`Microphone test failed: ${err.message}`, 'error');
-                    resolve();
-                });
-        });
-    };
-
-    window.testMicRecord = function(duration) {
-        return new Promise((resolve) => {
-            addToConsole(`Recording microphone for ${duration} seconds...`, 'info');
-            
-            navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(stream => {
-                    const mediaRecorder = new MediaRecorder(stream);
-                    const chunks = [];
-                    
-                    mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
-                    mediaRecorder.onstop = () => {
-                        const blob = new Blob(chunks, { type: 'audio/webm' });
-                        const url = URL.createObjectURL(blob);
-                        
-                        addToConsole(`Recording complete - ${(blob.size / 1024).toFixed(1)}KB recorded`, 'success');
-                        
-                        // Create download link
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `test-recording-${Date.now()}.webm`;
-                        a.click();
-                        
-                        stream.getTracks().forEach(track => track.stop());
-                        resolve();
-                    };
-                    
-                    mediaRecorder.start();
-                    setTimeout(() => mediaRecorder.stop(), duration * 1000);
-                })
-                .catch(err => {
-                    addToConsole(`Recording failed: ${err.message}`, 'error');
-                    resolve();
-                });
-        });
-    };
-
-    window.testMicContinuous = function() {
-        addToConsole('Starting continuous microphone monitoring (click Stop to end)', 'info');
-        
-        navigator.mediaDevices.getUserMedia({ audio: true })
-            .then(stream => {
-                testState.mediaStream = stream;
-                const audioContext = new AudioContext();
-                const source = audioContext.createMediaStreamSource(stream);
-                const analyser = audioContext.createAnalyser();
-                source.connect(analyser);
-                
-                const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                
-                testState.testInterval = setInterval(() => {
-                    analyser.getByteFrequencyData(dataArray);
-                    const level = Math.max(...dataArray) / 255;
-                    document.getElementById('liveTestResult').innerHTML = `Mic level: ${Math.round(level * 100)}%`;
-                }, 100);
+        fetch('/api/test/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                testId,
+                parameters,
+                deviceId: currentDeviceId
             })
-            .catch(err => {
-                addToConsole(`Continuous monitoring failed: ${err.message}`, 'error');
-            });
-    };
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                addToConsole(`Test started: ${data.message}`, 'success');
+                
+                // Start polling for status
+                startPollingTestStatus(data.data.runId);
+            } else {
+                addToConsole(`Failed to start test: ${data.message}`, 'danger');
+                resetTestButtons();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            addToConsole(`Error: ${error.message}`, 'danger');
+            resetTestButtons();
+        });
+    }
 
-    window.stopMicTest = function() {
-        if (testState.mediaStream) {
-            testState.mediaStream.getTracks().forEach(track => track.stop());
-            testState.mediaStream = null;
-        }
-        if (testState.testInterval) {
-            clearInterval(testState.testInterval);
-            testState.testInterval = null;
-        }
-        document.getElementById('liveTestResult').innerHTML = 'Microphone monitoring stopped';
-        addToConsole('Microphone monitoring stopped', 'info');
-    };
+    function runAllTests() {
+        if (!confirm('Run all tests? This may take several minutes.')) return;
 
-    async function runAudioTest(testId, param) {
-        if (testId === 'tone-440') {
-            await testTone(440, parseInt(param) || 1);
-        } else if (testId === 'tone-1000') {
-            await testTone(1000, parseInt(param) || 0.5);
-        } else if (testId === 'tone-2000') {
-            await testTone(2000, parseInt(param) || 0.3);
-        } else if (testId === 'sweep') {
-            await testSweep();
-        } else if (testId === 'playback') {
-            await testPlayback();
+        addToConsole('Starting full system test...', 'info');
+        runTest('fullSystem', {});
+    }
+
+    function stopCurrentTest() {
+        if (!runningTests.size) return;
+
+        const runId = Array.from(runningTests.keys())[0];
+        
+        fetch(`/api/test/stop/${runId}?deviceId=${currentDeviceId}`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                addToConsole('Test stopped', 'warning');
+                resetTestButtons();
+            }
+        })
+        .catch(console.error);
+    }
+
+    function quickTest(testId) {
+        runTest(testId, {});
+    }
+
+    function startPollingTestStatus(runId) {
+        const pollInterval = setInterval(() => {
+            fetch(`/api/test/status/${runId}?deviceId=${currentDeviceId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateTestStatus(data.data);
+                        
+                        if (data.data.completed) {
+                            clearInterval(pollInterval);
+                            resetTestButtons();
+                            loadTestHistory(); // Refresh history
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Polling error:', error);
+                    clearInterval(pollInterval);
+                    resetTestButtons();
+                });
+        }, 1000);
+    }
+
+    function updateTestStatus(status) {
+        // Update running tests map
+        if (!status.completed) {
+            runningTests.set(status.runId, status);
+        } else {
+            runningTests.delete(status.runId);
+        }
+
+        // Update UI
+        if (elements.currentTestName) {
+            elements.currentTestName.textContent = status.testId || 'Unknown';
+        }
+
+        if (elements.testProgressBar && status.progress !== undefined) {
+            elements.testProgressBar.style.width = `${status.progress}%`;
+            elements.testProgressBar.textContent = `${status.progress}%`;
+        }
+
+        if (elements.testStatus) {
+            elements.testStatus.innerHTML = getStatusBadge(status.status);
+        }
+
+        if (elements.liveTestResult && status.message) {
+            elements.liveTestResult.innerHTML = `<span class="text-muted">${status.message}</span>`;
+        }
+
+        // Add to console
+        if (status.message && status.message !== 'Test completed successfully') {
+            addToConsole(status.message, status.status === 'failed' ? 'danger' : 'info');
+        }
+
+        // Update detailed results
+        if (status.details) {
+            displayDetailedResults(status.details);
         }
     }
 
-    window.testTone = function(freq, duration) {
-        return new Promise((resolve) => {
-            addToConsole(`Playing ${freq}Hz tone for ${duration}s`, 'info');
-            
-            if (!testState.audioContext) {
-                testState.audioContext = new AudioContext();
-            }
-            
-            const oscillator = testState.audioContext.createOscillator();
-            const gainNode = testState.audioContext.createGain();
-            
-            oscillator.type = 'sine';
-            oscillator.frequency.value = freq;
-            
-            gainNode.gain.value = 0.1;
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(testState.audioContext.destination);
-            
-            oscillator.start();
-            oscillator.stop(testState.audioContext.currentTime + duration);
-            
-            oscillator.onended = () => {
-                addToConsole('Tone playback complete', 'success');
-                resolve();
-            };
-        });
-    };
+    function clearTestResults() {
+        if (!confirm('Clear all test results?')) return;
 
-    window.testSweep = function() {
-        return new Promise((resolve) => {
-            addToConsole('Playing frequency sweep (100Hz - 2000Hz)', 'info');
-            
-            if (!testState.audioContext) {
-                testState.audioContext = new AudioContext();
-            }
-            
-            const now = testState.audioContext.currentTime;
-            const oscillator = testState.audioContext.createOscillator();
-            const gainNode = testState.audioContext.createGain();
-            
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(100, now);
-            oscillator.frequency.exponentialRampToValueAtTime(2000, now + 2);
-            
-            gainNode.gain.value = 0.1;
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(testState.audioContext.destination);
-            
-            oscillator.start();
-            oscillator.stop(now + 2.1);
-            
-            oscillator.onended = () => {
-                addToConsole('Sweep complete', 'success');
-                resolve();
-            };
-        });
-    };
-
-    window.testPlayback = function() {
-        addToConsole('Playing test audio message', 'info');
-        
-        if (!testState.audioContext) {
-            testState.audioContext = new AudioContext();
-        }
-        
-        const utterance = new SpeechSynthesisUtterance('This is a test of the speaker system');
-        window.speechSynthesis.speak(utterance);
-        
-        addToConsole('Test message playing', 'success');
-    };
-
-    window.testSpeaker = function() {
-        testTone(1000, 0.5);
-    };
-
-    window.stopSpeaker = function() {
-        if (testState.audioContext) {
-            testState.audioContext.close();
-            testState.audioContext = new AudioContext();
-            addToConsole('Speaker stopped', 'info');
-        }
-    };
-
-    // ==================== API TESTS ====================
-    async function runAPITest(testId, param) {
-        updateTestProgress(30);
-        
-        try {
-            let response;
-            let url = '/api/';
-            
-            switch(testId) {
-                case 'sms':
-                    url = 'sms/send';
-                    response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            to: param || '+8801712345678', 
-                            message: 'Test SMS from ESP32 dashboard' 
-                        })
-                    });
-                    break;
-                    
-                case 'call':
-                    url = 'calls/dial';
-                    response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ number: param || '+8801712345678' })
-                    });
-                    break;
-                    
-                case 'ussd':
-                case 'ussd-balance':
-                    url = 'ussd/send';
-                    response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            code: param || (testId === 'ussd-balance' ? '*566#' : '*121#') 
-                        })
-                    });
-                    break;
-                    
-                case 'camera':
-                case 'camera-stream':
-                    url = 'webcam/capture';
-                    response = await fetch(url, { method: 'POST' });
-                    break;
-                    
-                case 'buzzer':
-                    url = 'gpio/buzzer';
-                    response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            freq: param ? parseInt(param.split(',')[0]) : 1000,
-                            duration: param ? parseInt(param.split(',')[1]) : 500
-                        })
-                    });
-                    break;
-                    
-                case 'gps':
-                case 'gps-status':
-                    url = 'gps/location';
-                    response = await fetch(url);
-                    break;
-                    
-                case 'signal':
-                    url = 'modem/status';
-                    response = await fetch(url);
-                    break;
-                    
-                case 'wifi-scan':
-                    url = 'modem/wifi/client/scan';
-                    response = await fetch(url);
-                    break;
-                    
-                case 'cell-info':
-                    url = 'modem/mobile/status';
-                    response = await fetch(url);
-                    break;
-                    
-                case 'sd-info':
-                case 'sd-read':
-                case 'sd-write':
-                case 'sd-speed':
-                    url = 'storage/info';
-                    response = await fetch(url);
-                    break;
-                    
-                case 'battery':
-                case 'battery-status':
-                case 'charging':
-                case 'voltage':
-                    url = 'status';
-                    response = await fetch(url);
-                    break;
-                    
-                case 'temperature':
-                case 'humidity':
-                case 'pressure':
-                case 'light':
-                case 'hall':
-                    url = 'sensor/' + testId;
-                    response = await fetch(url);
-                    break;
-                    
-                case 'ping':
-                    url = 'network/ping';
-                    response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ host: param || '8.8.8.8' })
-                    });
-                    break;
-                    
-                default:
-                    addToConsole(`Unknown test: ${testId}`, 'error');
-                    return;
-            }
-            
-            updateTestProgress(70);
-            
-            if (response) {
-                const data = await response.json();
-                updateTestProgress(90);
+        fetch('/api/test/history', {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                testHistory = [];
+                updateHistoryStats();
+                displayTestHistory();
+                addToConsole('Test history cleared', 'success');
                 
-                if (data.success) {
-                    addToConsole(`${testId} test passed`, 'success', data);
-                } else {
-                    addToConsole(`${testId} test failed: ${data.message || 'Unknown error'}`, 'error', data);
+                if (elements.detailedResults) {
+                    elements.detailedResults.innerHTML = '<div class="text-muted">No tests run yet.</div>';
                 }
             }
+        })
+        .catch(console.error);
+    }
+
+    function resetTestButtons() {
+        if (elements.runTestBtn) {
+            elements.runTestBtn.disabled = false;
+            elements.runTestBtn.innerHTML = '<i class="bi bi-play-fill"></i> Run';
+        }
+        
+        if (elements.stopTestBtn) {
+            elements.stopTestBtn.disabled = true;
+        }
+
+        if (elements.testProgressBar) {
+            elements.testProgressBar.style.width = '0%';
+            elements.testProgressBar.textContent = '';
+        }
+    }
+
+    // ==================== UI UPDATES ====================
+
+    function updateHistoryStats() {
+        if (!elements.testSuccessCount || !elements.testFailCount || !elements.testTotalCount) return;
+
+        const total = testHistory.length;
+        const passed = testHistory.filter(t => t.result === 'pass').length;
+        const failed = testHistory.filter(t => t.result === 'fail').length;
+
+        elements.testTotalCount.textContent = total;
+        elements.testSuccessCount.textContent = passed;
+        elements.testFailCount.textContent = failed;
+    }
+
+    function displayTestHistory() {
+        if (!elements.detailedResults) return;
+
+        if (testHistory.length === 0) {
+            elements.detailedResults.innerHTML = '<div class="text-muted">No tests run yet. Select a test from dropdown and click Run.</div>';
+            return;
+        }
+
+        let html = '';
+        testHistory.slice(0, 10).forEach(test => {
+            const date = new Date(test.timestamp);
+            const timeStr = date.toLocaleTimeString();
+            const dateStr = date.toLocaleDateString();
             
-        } catch (error) {
-            addToConsole(`${testId} test error: ${error.message}`, 'error');
+            html += `
+                <div class="test-result ${test.result} small mb-1 p-1 border-start border-3 border-${test.result === 'pass' ? 'success' : 'danger'}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <i class="bi bi-${test.result === 'pass' ? 'check-circle-fill text-success' : 'exclamation-triangle-fill text-danger'} me-1"></i>
+                            <span class="fw-bold">${test.name}</span>
+                            <span class="text-muted ms-2">${timeStr}</span>
+                        </div>
+                        <div>
+                            <span class="badge bg-${test.result === 'pass' ? 'success' : 'danger'}">${test.result}</span>
+                            <button class="btn btn-sm btn-link p-0 ms-2" onclick="viewTestDetails('${test.runId}')">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-link p-0 text-danger" onclick="deleteTestResult('${test.runId}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    ${test.error ? `<div class="small text-danger mt-1">${test.error}</div>` : ''}
+                    ${test.details ? `<div class="small text-muted mt-1">${JSON.stringify(test.details).substring(0, 100)}...</div>` : ''}
+                </div>
+            `;
+        });
+
+        elements.detailedResults.innerHTML = html;
+
+        if (elements.resultTimestamp) {
+            elements.resultTimestamp.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
         }
     }
 
-    function handleTestResult(data) {
-        if (data.success) {
-            addToConsole(data.message || 'Test completed successfully', 'success', data);
-        } else {
-            addToConsole(data.message || 'Test failed', 'error', data);
+    function displayDetailedResults(details) {
+        // This would show detailed test results in a modal or expanded view
+        console.log('Detailed results:', details);
+    }
+
+    function getStatusBadge(status) {
+        const badges = {
+            running: '<span class="badge bg-primary"><i class="bi bi-arrow-repeat"></i> Running</span>',
+            completed: '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Completed</span>',
+            failed: '<span class="badge bg-danger"><i class="bi bi-exclamation-triangle"></i> Failed</span>',
+            stopped: '<span class="badge bg-warning"><i class="bi bi-stop-circle"></i> Stopped</span>'
+        };
+        return badges[status] || '<span class="badge bg-secondary">Unknown</span>';
+    }
+
+    function addToConsole(message, type = 'info') {
+        if (!elements.testConsole) return;
+
+        const time = new Date().toLocaleTimeString();
+        const color = type === 'danger' ? 'text-danger' : 
+                     type === 'success' ? 'text-success' : 
+                     type === 'warning' ? 'text-warning' : 'text-info';
+
+        const line = document.createElement('div');
+        line.className = `console-line ${color} small p-1`;
+        line.innerHTML = `<span class="text-muted">[${time}]</span> ${message}`;
+        
+        elements.testConsole.appendChild(line);
+        elements.testConsole.scrollTop = elements.testConsole.scrollHeight;
+
+        // Keep only last 100 lines
+        while (elements.testConsole.children.length > 100) {
+            elements.testConsole.removeChild(elements.testConsole.firstChild);
         }
     }
 
-    // ==================== BUTTON TESTS ====================
-    window.testButton = function(pin) {
-        addToConsole(`Testing button on GPIO${pin} - press the button now`, 'info');
-        readPin(pin);
-    };
+    function updateDeviceStatus() {
+        if (!elements.deviceTestStatus || !elements.deviceTestStatusText) return;
 
-    // ==================== EXPORT FUNCTIONS ====================
-    window.testSMS = () => runTest('sms', document.getElementById('testPhone')?.value || '');
-    window.testCall = () => runTest('call', document.getElementById('testCallPhone')?.value || '');
-    window.testUSSD = () => runTest('ussd', document.getElementById('testUSSDCode')?.value || '');
-    window.testCamera = () => runTest('camera', '');
-    window.testGPS = () => runTest('gps', '');
-    window.testSignal = () => runTest('signal', '');
-    window.testBattery = () => runTest('battery', '');
-    window.testTemperature = () => runTest('temperature', '');
-    window.testSDCard = () => runTest('sd-info', '');
-    window.testAPN = () => runTest('cell-info', '');
-    window.testButton0 = () => testButton(0);
-    window.testButton2 = () => testButton(2);
-    
-    // Export other functions
-    window.setPinHigh = setPinHigh;
-    window.setPinLow = setPinLow;
-    window.readPin = readPin;
-    window.setPinMode = setPinMode;
-    window.scanAllPins = scanAllPins;
-    window.testAllOutputs = testAllOutputs;
-    window.testLED = testLED;
-    window.testRGBLED = testRGBLED;
-    window.testAllLEDs = testAllLEDs;
-    window.testMicLevel = testMicLevel;
-    window.testMicRecord = testMicRecord;
-    window.testMicContinuous = testMicContinuous;
-    window.stopMicTest = stopMicTest;
-    window.testTone = testTone;
-    window.testSweep = testSweep;
-    window.testPlayback = testPlayback;
-    window.testSpeaker = testSpeaker;
-    window.stopSpeaker = stopSpeaker;
-    window.pulsePin = pulsePin;
+        // Check device status via MQTT or API
+        fetch('/api/status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const online = data.data?.online || false;
+                    
+                    if (online) {
+                        elements.deviceTestStatus.className = 'badge bg-success d-flex align-items-center';
+                        elements.deviceTestStatusText.textContent = 'Online';
+                    } else {
+                        elements.deviceTestStatus.className = 'badge bg-danger d-flex align-items-center';
+                        elements.deviceTestStatusText.textContent = 'Offline';
+                    }
+                }
+            })
+            .catch(() => {
+                elements.deviceTestStatus.className = 'badge bg-secondary d-flex align-items-center';
+                elements.deviceTestStatusText.textContent = 'Unknown';
+            });
+    }
+
+    function viewTestDetails(runId) {
+        const test = testHistory.find(t => t.runId === runId);
+        if (!test) return;
+
+        // Show details modal
+        const modal = new bootstrap.Modal(document.getElementById('testDetailsModal'));
+        
+        document.getElementById('detailsTestName').textContent = test.name;
+        document.getElementById('detailsTimestamp').textContent = new Date(test.timestamp).toLocaleString();
+        document.getElementById('detailsResult').innerHTML = getStatusBadge(test.result);
+        document.getElementById('detailsContent').innerHTML = 
+            `<pre class="small">${JSON.stringify(test.details || test, null, 2)}</pre>`;
+        
+        modal.show();
+    }
+
+    function deleteTestResult(runId) {
+        if (!confirm('Delete this test result?')) return;
+
+        fetch(`/api/test/result/${runId}?deviceId=${currentDeviceId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                testHistory = testHistory.filter(t => t.runId !== runId);
+                updateHistoryStats();
+                displayTestHistory();
+                addToConsole('Test result deleted', 'success');
+            }
+        })
+        .catch(console.error);
+    }
+
+    function exportTestLog() {
+        const log = [];
+        Array.from(elements.testConsole.children).forEach(line => {
+            log.push(line.textContent);
+        });
+
+        const dataStr = log.join('\n');
+        const dataUri = 'data:text/plain;charset=utf-8,' + encodeURIComponent(dataStr);
+        
+        const exportFileDefaultName = `test-log-${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.txt`;
+        
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+        
+        addToConsole('Test log exported', 'success');
+    }
+
+    // ==================== PERIODIC UPDATES ====================
+
+    function startPeriodicUpdate() {
+        if (updateInterval) clearInterval(updateInterval);
+        updateInterval = setInterval(() => {
+            updateDeviceStatus();
+        }, 5000);
+    }
+
+    function stopPeriodicUpdate() {
+        if (updateInterval) {
+            clearInterval(updateInterval);
+            updateInterval = null;
+        }
+    }
+
+    // ==================== EVENT LISTENERS ====================
+
+    function attachEventListeners() {
+        // Category change
+        if (elements.testCategory) {
+            elements.testCategory.addEventListener('change', updateTestList);
+        }
+
+        // Test selection change
+        if (elements.testSelector) {
+            elements.testSelector.addEventListener('change', showTestParameters);
+        }
+
+        // Run button
+        if (elements.runTestBtn) {
+            elements.runTestBtn.addEventListener('click', runSelectedTest);
+        }
+
+        // Stop button
+        if (elements.stopTestBtn) {
+            elements.stopTestBtn.addEventListener('click', stopCurrentTest);
+        }
+
+        // Run all button
+        if (elements.runAllBtn) {
+            elements.runAllBtn.addEventListener('click', runAllTests);
+        }
+
+        // Clear results button
+        if (elements.clearResultsBtn) {
+            elements.clearResultsBtn.addEventListener('click', clearTestResults);
+        }
+
+        // Quick test badges
+        document.querySelectorAll('[onclick^="quickTest"]').forEach(el => {
+            const testId = el.getAttribute('onclick').match(/'([^']+)'/)?.[1];
+            if (testId) {
+                el.addEventListener('click', () => quickTest(testId));
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+Enter to run test
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                runSelectedTest();
+            }
+            
+            // Ctrl+Shift+C to clear console
+            if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+                e.preventDefault();
+                if (elements.testConsole) {
+                    elements.testConsole.innerHTML = '';
+                    addToConsole('Console cleared', 'info');
+                }
+            }
+        });
+    }
+
+    function attachSocketListeners() {
+        if (typeof socket === 'undefined') return;
+
+        socket.off('test:progress');
+        socket.on('test:progress', (data) => {
+            if (data.deviceId === currentDeviceId) {
+                if (elements.testProgressBar) {
+                    elements.testProgressBar.style.width = `${data.progress}%`;
+                    elements.testProgressBar.textContent = `${data.progress}%`;
+                }
+                
+                if (data.message) {
+                    addToConsole(data.message, 'info');
+                }
+            }
+        });
+
+        socket.off('test:status');
+        socket.on('test:status', (data) => {
+            if (data.deviceId === currentDeviceId) {
+                updateTestStatus(data);
+                
+                if (data.status === 'completed' || data.status === 'failed') {
+                    loadTestHistory();
+                }
+            }
+        });
+    }
+
+    // Cleanup
+    window.addEventListener('beforeunload', () => {
+        stopPeriodicUpdate();
+    });
+
+    // Expose functions globally
+    window.runSelectedTest = runSelectedTest;
+    window.stopCurrentTest = stopCurrentTest;
+    window.runAllTests = runAllTests;
+    window.clearTestResults = clearTestResults;
+    window.quickTest = quickTest;
+    window.exportTestLog = exportTestLog;
+    window.viewTestDetails = viewTestDetails;
+    window.deleteTestResult = deleteTestResult;
+
+    console.log('Test.js initialized');
 })();

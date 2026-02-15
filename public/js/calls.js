@@ -11,6 +11,7 @@
     let callStatusInterval = null;
     let contacts = [];
     let filteredContacts = [];
+    let isDeviceConnected = <%= isDeviceConnected %>; // Pass from server
 
     // Wait for DOM to be ready
     if (document.readyState === 'loading') {
@@ -21,17 +22,31 @@
 
     function init() {
         console.log('Initializing Calls page...');
+        console.log('Device connected:', isDeviceConnected);
 
         // Load initial data
         loadCallLogs();
         loadContacts();
         loadStats();
-        startCallStatusCheck();
+        
+        // Only start call status check if device is connected
+        if (isDeviceConnected) {
+            startCallStatusCheck();
+        }
 
         // Attach event listeners
         attachDialerListeners();
         attachSearchAndFilter();
         attachModalListeners();
+    }
+
+    // ==================== CONNECTION CHECK ====================
+    function checkDeviceConnection() {
+        if (!isDeviceConnected) {
+            showToast('Device is offline. Call functions are disabled.', 'warning');
+            return false;
+        }
+        return true;
     }
 
     // Load call logs
@@ -66,7 +81,8 @@
                     <td colspan="7" class="text-center py-5">
                         <i class="bi bi-telephone-x fs-1 text-muted d-block mb-3"></i>
                         <p class="text-muted mb-0">No call logs found</p>
-                        <button class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#dialerModal">
+                        <button class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#dialerModal" 
+                                ${!isDeviceConnected ? 'disabled' : ''}>
                             <i class="bi bi-telephone-plus me-2"></i>Make a Call
                         </button>
                     </td>
@@ -114,7 +130,8 @@
                     <td><span class="badge ${statusBadge}">${statusText}</span></td>
                     <td>
                         <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-success" onclick="quickCall('${call.phone_number}')">
+                            <button class="btn btn-outline-success" onclick="quickCall('${call.phone_number}')" 
+                                    ${!isDeviceConnected ? 'disabled' : ''}>
                                 <i class="bi bi-telephone"></i>
                             </button>
                             <button class="btn btn-outline-info" onclick="quickSms('${call.phone_number}')">
@@ -153,7 +170,8 @@
                                         <small class="text-muted">${formatDuration(call.duration)}</small>
                                     </div>
                                     <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-success" onclick="quickCall('${call.phone_number}')">
+                                        <button class="btn btn-outline-success" onclick="quickCall('${call.phone_number}')" 
+                                                ${!isDeviceConnected ? 'disabled' : ''}>
                                             <i class="bi bi-telephone"></i>
                                         </button>
                                         <button class="btn btn-outline-danger" onclick="deleteCallLog(${call.id})">
@@ -228,7 +246,8 @@
                             ${contact.email ? `<small class="text-muted">${contact.email}</small>` : ''}
                         </div>
                         <div class="btn-group btn-group-sm ms-2">
-                            <button class="btn btn-outline-success" onclick="quickCall('${contact.phone_number}')" title="Call">
+                            <button class="btn btn-outline-success" onclick="quickCall('${contact.phone_number}')" 
+                                    ${!isDeviceConnected ? 'disabled' : ''} title="Call">
                                 <i class="bi bi-telephone"></i>
                             </button>
                             <button class="btn btn-outline-primary" onclick="editContact(${contact.id})" title="Edit">
@@ -270,7 +289,8 @@
         topContacts.forEach(contact => {
             html += `
                 <div class="col-6 col-md-3">
-                    <div class="speed-dial-card" onclick="quickCall('${contact.phone_number}')">
+                    <div class="speed-dial-card" onclick="quickCall('${contact.phone_number}')" 
+                         style="${!isDeviceConnected ? 'cursor: not-allowed; opacity: 0.5;' : ''}">
                         <i class="bi bi-person-circle text-primary"></i>
                         <div class="fw-bold text-truncate">${contact.name}</div>
                         <small class="text-muted text-truncate d-block">${contact.phone_number}</small>
@@ -301,7 +321,8 @@
         let html = '';
         favorites.slice(0, 5).forEach(contact => {
             html += `
-                <div class="list-group-item list-group-item-action" onclick="quickCall('${contact.phone_number}')">
+                <div class="list-group-item list-group-item-action" onclick="quickCall('${contact.phone_number}')" 
+                     style="${!isDeviceConnected ? 'cursor: not-allowed; opacity: 0.5;' : ''}">
                     <div class="d-flex align-items-center">
                         <div class="flex-shrink-0 me-2">
                             <i class="bi bi-star-fill text-warning"></i>
@@ -334,7 +355,8 @@
         let html = '';
         quickList.forEach(contact => {
             html += `
-                <span class="contact-chip" onclick="selectContact('${contact.phone_number}')">
+                <span class="contact-chip" onclick="selectContact('${contact.phone_number}')" 
+                      style="${!isDeviceConnected ? 'cursor: not-allowed; opacity: 0.5;' : ''}">
                     <i class="bi bi-person-circle"></i>
                     <span>${contact.name}</span>
                 </span>
@@ -452,8 +474,13 @@
         }
     }
 
-    // Make a call
+    // ==================== FIXED: Make a call with connection check ====================
     function makeCall(number) {
+        // Check device connection first
+        if (!checkDeviceConnection()) {
+            return;
+        }
+
         const formattedNumber = formatNumber(number);
 
         fetch('/api/calls/dial', {
@@ -482,8 +509,13 @@
             });
     }
 
-    // End call
+    // ==================== FIXED: End call with connection check ====================
     function endCall() {
+        // Check device connection first
+        if (!checkDeviceConnection()) {
+            return;
+        }
+
         fetch('/api/calls/end', {
             method: 'POST'
         })
@@ -493,14 +525,20 @@
                     showToast('Call ended', 'info');
                     hideActiveCallBanner();
                     loadCallLogs(currentPage);
+                } else {
+                    showToast(data.message || 'Failed to end call', 'danger');
                 }
             })
             .catch(error => {
                 console.error('Error ending call:', error);
+                showToast('Error ending call', 'danger');
             });
     }
 
-    function muteCall() {
+    // ==================== FIXED: Mute call with connection check ====================
+    window.muteCall = function () {
+        if (!checkDeviceConnection()) return;
+
         const muteBtn = document.querySelector('button[onclick="muteCall()"]');
         const isMuted = muteBtn.classList.contains('active');
 
@@ -509,31 +547,34 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ mute: !isMuted })
         })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    if (!isMuted) {
-                        muteBtn.classList.add('active', 'btn-success');
-                        muteBtn.classList.remove('btn-outline-success');
-                        muteBtn.innerHTML = '<i class="bi bi-mic-mute"></i> Unmute';
-                        showToast('Microphone muted', 'warning');
-                    } else {
-                        muteBtn.classList.remove('active', 'btn-success');
-                        muteBtn.classList.add('btn-outline-success');
-                        muteBtn.innerHTML = '<i class="bi bi-mic-mute"></i> Mute';
-                        showToast('Microphone unmuted', 'info');
-                    }
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (!isMuted) {
+                    muteBtn.classList.add('active', 'btn-success');
+                    muteBtn.classList.remove('btn-outline-success');
+                    muteBtn.innerHTML = '<i class="bi bi-mic-mute"></i> Unmute';
+                    showToast('Microphone muted', 'warning');
                 } else {
-                    showToast(data.message || 'Failed to toggle mute', 'danger');
+                    muteBtn.classList.remove('active', 'btn-success');
+                    muteBtn.classList.add('btn-outline-success');
+                    muteBtn.innerHTML = '<i class="bi bi-mic-mute"></i> Mute';
+                    showToast('Microphone unmuted', 'info');
                 }
-            })
-            .catch(error => {
-                console.error('Error toggling mute:', error);
-                showToast('Error toggling mute', 'danger');
-            });
-    }
+            } else {
+                showToast(data.message || 'Failed to toggle mute', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error toggling mute:', error);
+            showToast('Error toggling mute', 'danger');
+        });
+    };
 
-    function holdCall() {
+    // ==================== FIXED: Hold call with connection check ====================
+    window.holdCall = function () {
+        if (!checkDeviceConnection()) return;
+
         const holdBtn = document.querySelector('button[onclick="holdCall()"]');
         const isOnHold = holdBtn.classList.contains('active');
 
@@ -542,38 +583,43 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ hold: !isOnHold })
         })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    if (!isOnHold) {
-                        holdBtn.classList.add('active', 'btn-warning');
-                        holdBtn.classList.remove('btn-outline-primary');
-                        holdBtn.innerHTML = '<i class="bi bi-pause"></i> Resume';
-                        showToast('Call on hold', 'info');
-                    } else {
-                        holdBtn.classList.remove('active', 'btn-warning');
-                        holdBtn.classList.add('btn-outline-primary');
-                        holdBtn.innerHTML = '<i class="bi bi-pause"></i> Hold';
-                        showToast('Call resumed', 'info');
-                    }
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (!isOnHold) {
+                    holdBtn.classList.add('active', 'btn-warning');
+                    holdBtn.classList.remove('btn-outline-primary');
+                    holdBtn.innerHTML = '<i class="bi bi-pause"></i> Resume';
+                    showToast('Call on hold', 'info');
                 } else {
-                    showToast(data.message || 'Failed to toggle hold', 'danger');
+                    holdBtn.classList.remove('active', 'btn-warning');
+                    holdBtn.classList.add('btn-outline-primary');
+                    holdBtn.innerHTML = '<i class="bi bi-pause"></i> Hold';
+                    showToast('Call resumed', 'info');
                 }
-            })
-            .catch(error => {
-                console.error('Error toggling hold:', error);
-                showToast('Error toggling hold', 'danger');
-            });
-    }
+            } else {
+                showToast(data.message || 'Failed to toggle hold', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error toggling hold:', error);
+            showToast('Error toggling hold', 'danger');
+        });
+    };
 
-    function quickCall(number) {
+    // ==================== FIXED: Quick call with connection check ====================
+    window.quickCall = function (number) {
         if (!number) return;
+        
+        if (!checkDeviceConnection()) {
+            return;
+        }
 
         // Use SweetAlert2 or Bootstrap modal for better UX
         if (confirm(`Call ${number}?`)) {
             const callBtn = event?.target?.closest('button');
             const originalHtml = callBtn?.innerHTML;
-
+            
             if (callBtn) {
                 callBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
                 callBtn.disabled = true;
@@ -584,32 +630,32 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ number: number })
             })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast('Call initiated', 'success');
-                        // Close any open modals
-                        const dialerModal = bootstrap.Modal.getInstance(document.getElementById('dialerModal'));
-                        if (dialerModal) dialerModal.hide();
-
-                        // Start checking call status
-                        startCallStatusCheck();
-                    } else {
-                        showToast(data.message || 'Failed to make call', 'danger');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error making call:', error);
-                    showToast('Error making call', 'danger');
-                })
-                .finally(() => {
-                    if (callBtn) {
-                        callBtn.innerHTML = originalHtml;
-                        callBtn.disabled = false;
-                    }
-                });
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Call initiated', 'success');
+                    // Close any open modals
+                    const dialerModal = bootstrap.Modal.getInstance(document.getElementById('dialerModal'));
+                    if (dialerModal) dialerModal.hide();
+                    
+                    // Start checking call status
+                    startCallStatusCheck();
+                } else {
+                    showToast(data.message || 'Failed to make call', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error making call:', error);
+                showToast('Error making call', 'danger');
+            })
+            .finally(() => {
+                if (callBtn) {
+                    callBtn.innerHTML = originalHtml;
+                    callBtn.disabled = false;
+                }
+            });
         }
-    }
+    };
 
     window.quickSms = function (number) {
         if (!number) return;
@@ -641,11 +687,24 @@
 
     // Start call status check
     function startCallStatusCheck() {
+        if (callStatusInterval) {
+            clearInterval(callStatusInterval);
+        }
         callStatusInterval = setInterval(checkCallStatus, 2000);
     }
 
     // Check call status
     function checkCallStatus() {
+        if (!isDeviceConnected) {
+            // If device goes offline during call, hide banner
+            hideActiveCallBanner();
+            if (callStatusInterval) {
+                clearInterval(callStatusInterval);
+                callStatusInterval = null;
+            }
+            return;
+        }
+
         fetch('/api/calls/status')
             .then(response => response.json())
             .then(data => {
@@ -834,7 +893,8 @@
                             <p class="mb-0 small">${contact.phone_number}</p>
                         </div>
                         <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-success" onclick="quickCall('${contact.phone_number}')">
+                            <button class="btn btn-outline-success" onclick="quickCall('${contact.phone_number}')" 
+                                    ${!isDeviceConnected ? 'disabled' : ''}>
                                 <i class="bi bi-telephone"></i>
                             </button>
                             <button class="btn btn-outline-primary" onclick="editContact(${contact.id})">

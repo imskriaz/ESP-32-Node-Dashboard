@@ -7,10 +7,17 @@ const path = require('path');
 router.get('/', async (req, res) => {
     try {
         const db = req.app.locals.db;
+        const deviceId = 'esp32-s3-1';
         
         if (!db) {
             throw new Error('Database not available');
         }
+
+        // Check device connection status
+        const isDeviceConnected = global.mqttService && 
+                                  global.mqttService.connected && 
+                                  global.modemService && 
+                                  global.modemService.isDeviceOnline(deviceId);
 
         // Get recent SMS
         const recentSms = await db.all(`
@@ -82,27 +89,31 @@ router.get('/', async (req, res) => {
             temperature: 0,
             uptime: '0s',
             ip: '0.0.0.0',
-            online: false
+            online: false,
+            imei: '****',
+            lastSeen: null
         };
         
-        if (global.modemService && typeof global.modemService.getStatus === 'function') {
+        if (isDeviceConnected && global.modemService && typeof global.modemService.getDeviceStatus === 'function') {
             try {
-                const status = global.modemService.getStatus();
+                const status = global.modemService.getDeviceStatus(deviceId);
                 deviceStatus = {
                     signal: status.signal || 0,
                     battery: status.battery || 0,
-                    network: status.online ? (status.network || 'No Service') : 'No Device',
-                    operator: status.online ? (status.operator || 'Unknown') : 'Not Connected',
+                    network: status.network || 'No Service',
+                    operator: status.operator || 'Unknown',
                     temperature: status.temperature || 0,
-                    uptime: status.online ? (status.uptime || '0s') : '0s',
-                    ip: status.online ? (status.ip || '0.0.0.0') : '0.0.0.0',
-                    online: status.online || false
+                    uptime: status.uptime || '0s',
+                    ip: status.ip || '0.0.0.0',
+                    online: true,
+                    imei: status.imei || '****',
+                    lastSeen: status.lastSeen || new Date().toISOString()
                 };
             } catch (statusError) {
                 logger.error('Error getting modem status:', statusError);
             }
         } else {
-            logger.warn('modemService.getStatus not available, using offline values');
+            logger.debug('Device not connected, showing offline status');
         }
 
         // Get data usage stats
@@ -145,7 +156,8 @@ router.get('/', async (req, res) => {
             storageInfo,
             dataUsage,
             user: req.session.user,
-            moment: require('moment')
+            moment: require('moment'),
+            isDeviceConnected // Pass this to template
         });
     } catch (error) {
         logger.error('Dashboard page error:', error);
@@ -166,7 +178,9 @@ router.get('/', async (req, res) => {
                 temperature: 0,
                 uptime: '0s',
                 ip: '0.0.0.0',
-                online: false
+                online: false,
+                imei: '****',
+                lastSeen: null
             },
             storageInfo: {
                 internal: { total: 0, used: 0, free: 0, available: false },
@@ -179,7 +193,8 @@ router.get('/', async (req, res) => {
                 callDuration: 0
             },
             user: req.session.user,
-            moment: require('moment')
+            moment: require('moment'),
+            isDeviceConnected: false
         });
     }
 });
@@ -235,10 +250,18 @@ router.get('/sms', async (req, res) => {
     }
 });
 
+// Calls page
 router.get('/calls', async (req, res) => {
     try {
         const db = req.app.locals.db;
+        const deviceId = 'esp32-s3-1';
         
+        // Check device connection status
+        const isDeviceConnected = global.mqttService && 
+                                  global.mqttService.connected && 
+                                  global.modemService && 
+                                  global.modemService.isDeviceOnline(deviceId);
+
         // Get call stats
         const totalCalls = await db.get('SELECT COUNT(*) as count FROM calls');
         const answeredCalls = await db.get("SELECT COUNT(*) as count FROM calls WHERE status = 'answered'");
@@ -251,7 +274,8 @@ router.get('/calls', async (req, res) => {
                 answered: answeredCalls?.count || 0,
                 missed: missedCalls?.count || 0
             },
-            user: req.session.user
+            user: req.session.user,
+            isDeviceConnected: isDeviceConnected // Pass connection state
         });
     } catch (error) {
         logger.error('Calls page error:', error);
@@ -427,15 +451,16 @@ router.post('/api/quick/restart-modem', async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to restart modem' });
     }
 });
-router.get('/gps', async (req, res) => {
+router.get('/location', async (req, res) => {
     try {
-        res.render('pages/gps', {
-            title: 'GPS',
-            user: req.session.user
+        res.render('pages/location', {
+            title: 'GPS Location',
+            user: req.session.user,
+            googleMapsKey: process.env.GOOGLE_MAPS_API_KEY || ''
         });
     } catch (error) {
-        logger.error('GPS page error:', error);
-        req.flash('error', 'Failed to load GPS page');
+        logger.error('Location page error:', error);
+        req.flash('error', 'Failed to load location page');
         res.redirect('/');
     }
 });
@@ -453,4 +478,21 @@ router.get('/gpio', async (req, res) => {
         res.redirect('/');
     }
 });
+
+router.get('/test', async (req, res) => {
+    try {
+        res.render('pages/test', {
+            title: 'Device Test Center',
+            user: req.session.user,
+            layout: 'layouts/main',
+            pageScript: 'test.js'
+        });
+    } catch (error) {
+        logger.error('Test page error:', error);
+        req.flash('error', 'Failed to load test page');
+        res.redirect('/');
+    }
+});
+
+
 module.exports = router;

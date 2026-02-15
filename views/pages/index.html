@@ -17,100 +17,137 @@
     </div>
 </div>
 
-<!-- Welcome Message -->
-<div class="alert alert-primary alert-dismissible fade show d-flex align-items-center py-2 py-sm-3 mb-4" role="alert">
-    <i class="bi bi-hand-thumbs-up fs-4 me-2 me-sm-3"></i>
-    <div class="flex-grow-1">
-        <strong>Welcome back, <%= user.name || user.username %>!</strong>
-        <span class="d-none d-sm-inline"> Your device is online and functioning normally.</span>
+<!-- Welcome Message - Dynamic based on connection status -->
+<% if (isDeviceConnected) { %>
+    <div class="alert alert-success alert-dismissible fade show d-flex align-items-center py-2 py-sm-3 mb-4" role="alert">
+        <i class="bi bi-check-circle-fill fs-4 me-2 me-sm-3 text-success"></i>
+        <div class="flex-grow-1">
+            <strong>Welcome back, <%= user.name || user.username %>!</strong>
+            <span class="d-none d-sm-inline"> Your device is online and functioning normally.</span>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
+<% } else { %>
+    <div class="alert alert-warning alert-dismissible fade show d-flex align-items-center py-2 py-sm-3 mb-4" role="alert">
+        <i class="bi bi-exclamation-triangle-fill fs-4 me-2 me-sm-3 text-warning"></i>
+        <div class="flex-grow-1">
+            <strong>Device Offline</strong>
+            <span class="d-none d-sm-inline"> - Your ESP32-S3 device is not connected. Please check:</span>
+            <ul class="mb-0 mt-1 ps-3">
+                <li>MQTT connection to <code>device.atebd.com:1883</code></li>
+                <li>Device power and 4G connectivity</li>
+                <li>DIP switches: USB OFF, 4G ON</li>
+                <li>SIM card is active and has balance</li>
+            </ul>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+<% } %>
 
-<!-- Status Cards Row -->
+<!-- Status Cards Row - Only show essential cards when offline -->
 <div class="row g-3 mb-4">
-    <!-- Signal Card -->
+    <!-- Signal Card - Show offline state -->
     <div class="col-12 col-sm-6 col-md-3">
-        <div class="card border-primary h-100 hover-effect">
+        <div class="card <%= isDeviceConnected ? 'border-primary' : 'border-secondary' %> h-100 hover-effect">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="text-muted mb-1 small text-uppercase fw-semibold">Signal Strength</h6>
                         <h3 class="mb-0 display-6">
-                            <%= deviceStatus.signal %>%
+                            <%= isDeviceConnected ? deviceStatus.signal + '%' : 'OFFLINE' %>
                         </h3>
                     </div>
-                    <div class="bg-primary bg-opacity-10 p-3 rounded-circle">
-                        <i class="bi bi-wifi fs-2 text-primary"></i>
+                    <div class="<%= isDeviceConnected ? 'bg-primary' : 'bg-secondary' %> bg-opacity-10 p-3 rounded-circle">
+                        <i class="bi bi-wifi fs-2 <%= isDeviceConnected ? 'text-primary' : 'text-secondary' %>"></i>
                     </div>
                 </div>
-                <div class="progress mt-3" style="height: 6px;">
-                    <div class="progress-bar bg-primary" style="width: <%= deviceStatus.signal %>%"></div>
-                </div>
-                <small class="text-muted mt-2 d-block">
-                    <i class="bi bi-activity me-1"></i>Operator: <%= deviceStatus.operator || 'Robi' %>
-                </small>
+                <% if (isDeviceConnected) { %>
+                    <div class="progress mt-3" style="height: 6px;">
+                        <div class="progress-bar bg-primary" style="width: <%= deviceStatus.signal %>%"></div>
+                    </div>
+                    <small class="text-muted mt-2 d-block">
+                        <i class="bi bi-activity me-1"></i>Operator: <%= deviceStatus.operator || 'Robi' %>
+                    </small>
+                <% } else { %>
+                    <div class="mt-3">
+                        <span class="badge bg-secondary">Disconnected</span>
+                        <small class="text-muted d-block mt-2">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            Check device connection
+                        </small>
+                    </div>
+                <% } %>
             </div>
         </div>
     </div>
 
     <!-- Battery Card -->
     <div class="col-12 col-sm-6 col-md-3">
-        <div class="card border-success h-100 hover-effect">
+        <div class="card <%= isDeviceConnected ? 'border-success' : 'border-secondary' %> h-100 hover-effect">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="text-muted mb-1 small text-uppercase fw-semibold">Battery</h6>
                         <h3 class="mb-0 display-6">
-                            <%= deviceStatus.battery %>%
+                            <%= isDeviceConnected ? deviceStatus.battery + '%' : '---' %>
                         </h3>
                     </div>
-                    <div class="bg-success bg-opacity-10 p-3 rounded-circle">
-                        <i class="bi bi-battery-full fs-2 text-success"></i>
+                    <div class="<%= isDeviceConnected ? 'bg-success' : 'bg-secondary' %> bg-opacity-10 p-3 rounded-circle">
+                        <i class="bi bi-battery-<%= isDeviceConnected ? (deviceStatus.battery > 75 ? 'full' : deviceStatus.battery > 50 ? 'half' : deviceStatus.battery > 25 ? 'charging' : 'exclamation') : 'exclamation' %> fs-2 <%= isDeviceConnected ? 'text-success' : 'text-secondary' %>"></i>
                     </div>
                 </div>
-                <div class="progress mt-3" style="height: 6px;">
-                    <div class="progress-bar bg-success" style="width: <%= deviceStatus.battery %>%"></div>
-                </div>
-                <small class="text-muted mt-2 d-block">
-                    <i class="bi bi-lightning me-1"></i>Charging: USB
-                </small>
+                <% if (isDeviceConnected) { %>
+                    <div class="progress mt-3" style="height: 6px;">
+                        <div class="progress-bar bg-success" style="width: <%= deviceStatus.battery %>%"></div>
+                    </div>
+                    <small class="text-muted mt-2 d-block">
+                        <i class="bi bi-lightning me-1"></i>Charging: <%= deviceStatus.charging ? 'Yes' : 'No' %>
+                    </small>
+                <% } else { %>
+                    <div class="mt-3">
+                        <span class="badge bg-secondary">No data</span>
+                    </div>
+                <% } %>
             </div>
         </div>
     </div>
 
     <!-- Network Card -->
     <div class="col-12 col-sm-6 col-md-3">
-        <div class="card border-info h-100 hover-effect">
+        <div class="card <%= isDeviceConnected ? 'border-info' : 'border-secondary' %> h-100 hover-effect">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="text-muted mb-1 small text-uppercase fw-semibold">Network</h6>
+                        <h6 class="text-muted mb-1 small text-uptime fw-semibold">Network</h6>
                         <h3 class="mb-0 display-6">
-                            <%= deviceStatus.network %>
+                            <%= isDeviceConnected ? (deviceStatus.network || 'No Service') : 'OFFLINE' %>
                         </h3>
                     </div>
-                    <div class="bg-info bg-opacity-10 p-3 rounded-circle">
-                        <i class="bi bi-broadcast fs-2 text-info"></i>
+                    <div class="<%= isDeviceConnected ? 'bg-info' : 'bg-secondary' %> bg-opacity-10 p-3 rounded-circle">
+                        <i class="bi bi-broadcast fs-2 <%= isDeviceConnected ? 'text-info' : 'text-secondary' %>"></i>
                     </div>
                 </div>
-                <div class="mt-3">
-                    <div class="d-flex justify-content-between">
-                        <small class="text-muted">Operator</small>
-                        <small class="fw-bold">
-                            <%= deviceStatus.operator || 'Robi' %>
-                        </small>
+                <% if (isDeviceConnected) { %>
+                    <div class="mt-3">
+                        <div class="d-flex justify-content-between">
+                            <small class="text-muted">Operator</small>
+                            <small class="fw-bold"><%= deviceStatus.operator || 'Robi' %></small>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <small class="text-muted">IP Address</small>
+                            <small class="fw-bold"><%= deviceStatus.ip || '0.0.0.0' %></small>
+                        </div>
                     </div>
-                    <div class="d-flex justify-content-between">
-                        <small class="text-muted">Technology</small>
-                        <small class="fw-bold">LTE Cat-1</small>
+                <% } else { %>
+                    <div class="mt-3">
+                        <span class="badge bg-secondary">No connection</span>
                     </div>
-                </div>
+                <% } %>
             </div>
         </div>
     </div>
 
-    <!-- Storage Card -->
+    <!-- Storage Card - Always show (local storage info) -->
     <div class="col-12 col-sm-6 col-md-3">
         <div class="card border-warning h-100 hover-effect">
             <div class="card-body">
@@ -123,31 +160,37 @@
                             sdDetails=Math.round(sdUsed / 1024 / 1024 / 1024 * 10) / 10 + 'GB / ' + Math.round(sdTotal /
                             1024 / 1024 / 1024 * 10) / 10 + 'GB' ; } %>
                             <h3 class="mb-0 display-6">
-                                <%= sdPercent %>%
+                                <%= storageInfo.sd && storageInfo.sd.available ? sdPercent + '%' : 'N/A' %>
                             </h3>
                     </div>
                     <div class="bg-warning bg-opacity-10 p-3 rounded-circle">
                         <i class="bi bi-sd-card fs-2 text-warning"></i>
                     </div>
                 </div>
-                <div class="progress mt-3" style="height: 6px;">
-                    <div class="progress-bar bg-warning" style="width: <%= sdPercent %>%"></div>
-                </div>
-                <small class="text-muted mt-2 d-block">
-                    <i class="bi bi-sd-card me-1"></i>
-                    SD Card: <%= sdDetails %>
-                </small>
-                <% if (!storageInfo.sd || !storageInfo.sd.available) { %>
-                    <small class="text-muted d-block mt-1 text-danger">
-                        <i class="bi bi-exclamation-triangle me-1"></i>
-                        No SD card detected
+                <% if (storageInfo.sd && storageInfo.sd.available) { %>
+                    <div class="progress mt-3" style="height: 6px;">
+                        <div class="progress-bar bg-warning" style="width: <%= sdPercent %>%"></div>
+                    </div>
+                    <small class="text-muted mt-2 d-block">
+                        <i class="bi bi-sd-card me-1"></i>
+                        <%= sdDetails %>
                     </small>
-                    <% } %>
+                <% } else { %>
+                    <div class="mt-3">
+                        <span class="badge bg-warning">No SD Card</span>
+                        <small class="text-muted d-block mt-2">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Insert SD card for storage
+                        </small>
+                    </div>
+                <% } %>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Device Details Card -->
+<!-- Device Details Card - Only show when connected -->
+<% if (isDeviceConnected) { %>
     <div class="card mb-4">
         <div class="card-header bg-white py-3">
             <h5 class="mb-0 fs-6 fw-semibold">
@@ -183,16 +226,26 @@
                 <div class="col-6 col-md-3">
                     <div class="d-flex flex-column">
                         <small class="text-muted text-uppercase small">IMEI</small>
-                        <strong class="fs-5 text-truncate">
+                        <strong class="fs-5 text-truncate" title="<%= deviceStatus.imei %>">
                             <%= deviceStatus.imei %>
                         </strong>
                     </div>
                 </div>
+                <% if (deviceStatus.lastSeen) { %>
+                    <div class="col-12">
+                        <small class="text-muted">
+                            <i class="bi bi-clock-history me-1"></i>
+                            Last seen: <%= moment(deviceStatus.lastSeen).format('YYYY-MM-DD HH:mm:ss') %>
+                        </small>
+                    </div>
+                <% } %>
             </div>
         </div>
     </div>
+<% } %>
 
-    <!-- Quick Actions -->
+<!-- Quick Actions - Only show when connected -->
+<% if (isDeviceConnected) { %>
     <div class="card mb-4">
         <div class="card-header bg-white py-3">
             <h5 class="mb-0 fs-6 fw-semibold">
@@ -217,287 +270,333 @@
             </div>
         </div>
     </div>
-
-    <!-- Recent Activity Row -->
-    <div class="row g-3">
-        <!-- Recent SMS List -->
-        <div class="col-12 col-lg-4">
-            <div class="card h-100">
-                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0 fs-6 fw-semibold">
-                        <i class="bi bi-chat-dots me-2"></i>Recent SMS
-                    </h5>
-                    <a href="/sms" class="btn btn-sm btn-primary">
-                        <span class="d-none d-sm-inline">View All</span>
-                        <i class="bi bi-arrow-right d-sm-none"></i>
-                    </a>
-                </div>
-                <div class="card-body p-0">
-                    <% if (recentSms && recentSms.length> 0) { %>
-                        <div class="list-group list-group-flush">
-                            <% recentSms.slice(0, 3).forEach(sms=> { %>
-                                <div class="list-group-item list-group-item-action p-3">
-                                    <div class="d-flex gap-3">
-                                        <div class="flex-shrink-0">
-                                            <div class="bg-light rounded-circle p-2">
-                                                <i class="bi bi-envelope fs-5"></i>
-                                            </div>
-                                        </div>
-                                        <div class="flex-grow-1">
-                                            <div
-                                                class="d-flex flex-column flex-sm-row justify-content-between align-items-start gap-2">
-                                                <h6 class="mb-0">
-                                                    <%= sms.from_number %>
-                                                        <% if (!sms.read) { %>
-                                                            <span class="badge bg-danger ms-2">New</span>
-                                                            <% } %>
-                                                </h6>
-                                                <small class="text-muted">
-                                                    <%= moment(sms.timestamp).fromNow() %>
-                                                </small>
-                                            </div>
-                                            <p class="mb-0 mt-1 text-truncate">
-                                                <%= sms.message %>
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <% }); %>
-                        </div>
-                        <% } else { %>
-                            <div class="text-center py-5">
-                                <i class="bi bi-inbox fs-1 text-muted"></i>
-                                <p class="text-muted mt-3 mb-0">No recent messages</p>
-                            </div>
-                            <% } %>
-                </div>
-            </div>
+<% } else { %>
+    <!-- Offline Actions - Show reconnect options -->
+    <div class="card mb-4 border-warning">
+        <div class="card-header bg-warning bg-opacity-10 py-3">
+            <h5 class="mb-0 fs-6 fw-semibold">
+                <i class="bi bi-exclamation-triangle me-2 text-warning"></i>Device Offline - Troubleshooting
+            </h5>
         </div>
-
-        <!-- Recent Calls -->
-        <div class="col-12 col-lg-4">
-            <div class="card h-100">
-                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0 fs-6 fw-semibold">
-                        <i class="bi bi-telephone me-2"></i>Recent Calls
-                    </h5>
-                    <a href="/calls" class="btn btn-sm btn-primary">
-                        <span class="d-none d-sm-inline">View All</span>
-                        <i class="bi bi-arrow-right d-sm-none"></i>
-                    </a>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <h6 class="fw-bold">Check Device:</h6>
+                    <ul class="small">
+                        <li>Ensure DIP switches: USB OFF, 4G ON</li>
+                        <li>Verify SIM card is inserted properly</li>
+                        <li>Check antenna connections</li>
+                        <li>Power cycle the device</li>
+                    </ul>
                 </div>
-                <div class="card-body p-0">
-                    <% if (recentCalls && recentCalls.length> 0) { %>
-                        <div class="list-group list-group-flush">
-                            <% recentCalls.slice(0, 3).forEach(call=> { %>
-                                <div class="list-group-item p-3">
-                                    <div class="d-flex align-items-center gap-3">
-                                        <div class="flex-shrink-0">
-                                            <div class="bg-light rounded-circle p-2">
-                                                <i class="bi bi-telephone fs-5 
-                                                <%= call.type === 'incoming' ? 'text-success' : 'text-primary' %>"></i>
-                                            </div>
-                                        </div>
-                                        <div class="flex-grow-1">
-                                            <div class="d-flex justify-content-between">
-                                                <h6 class="mb-0">
-                                                    <%= call.phone_number %>
-                                                </h6>
-                                                <small class="text-muted">
-                                                    <%= moment(call.start_time).fromNow() %>
-                                                </small>
-                                            </div>
-                                            <small class="text-muted">
-                                                <%= call.type==='incoming' ? 'Incoming' : 'Outgoing' %> •
-                                                    <%= call.duration> 0 ? Math.floor(call.duration / 60) + ':' + ('0' +
-                                                        (call.duration % 60)).slice(-2) : 'No answer' %>
-                                            </small>
-                                        </div>
-                                    </div>
-                                </div>
-                                <% }); %>
-                        </div>
-                        <% } else { %>
-                            <div class="text-center py-5">
-                                <i class="bi bi-telephone-x fs-1 text-muted"></i>
-                                <p class="text-muted mt-3 mb-0">No recent calls</p>
-                            </div>
-                            <% } %>
+                <div class="col-md-6">
+                    <h6 class="fw-bold">Check Server:</h6>
+                    <ul class="small">
+                        <li>MQTT broker: <code>device.atebd.com:1883</code></li>
+                        <li>MQTT user: <code>deviceuser</code></li>
+                        <li>Check firewall port 1883</li>
+                        <li>View <a href="/settings">MQTT settings</a></li>
+                    </ul>
                 </div>
-            </div>
-        </div>
-
-        <!-- System Activity -->
-        <div class="col-12 col-lg-4">
-            <div class="card h-100">
-                <div class="card-header bg-white py-3">
-                    <h5 class="mb-0 fs-6 fw-semibold">
-                        <i class="bi bi-activity me-2"></i>System Activity
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group list-group-flush">
-                        <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
-                            <div>
-                                <i class="bi bi-arrow-up-circle text-success me-2"></i>
-                                Data Sent
-                            </div>
-                            <span class="badge bg-light text-dark">
-                                <%= dataUsage.sent %> MB
-                            </span>
-                        </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
-                            <div>
-                                <i class="bi bi-arrow-down-circle text-primary me-2"></i>
-                                Data Received
-                            </div>
-                            <span class="badge bg-light text-dark">
-                                <%= dataUsage.received %> MB
-                            </span>
-                        </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
-                            <div>
-                                <i class="bi bi-envelope text-warning me-2"></i>
-                                SMS Sent
-                            </div>
-                            <span class="badge bg-light text-dark">
-                                <%= dataUsage.smsSent %>
-                            </span>
-                        </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
-                            <div>
-                                <i class="bi bi-telephone text-info me-2"></i>
-                                Call Duration
-                            </div>
-                            <span class="badge bg-light text-dark">
-                                <%= Math.floor(dataUsage.callDuration / 60) %> min
-                            </span>
-                        </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
-                            <div>
-                                <i class="bi bi-person-lines-fill text-secondary me-2"></i>
-                                Contacts
-                            </div>
-                            <span class="badge bg-light text-dark">
-                                <%= contactCount %>
-                            </span>
-                        </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
-                            <div>
-                                <i class="bi bi-telephone-forward text-secondary me-2"></i>
-                                USSD Queries
-                            </div>
-                            <span class="badge bg-light text-dark">
-                                <%= ussdCount %>
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-footer bg-white py-2">
-                    <small class="text-muted">
-                        <i class="bi bi-clock me-1"></i>Updated just now
-                    </small>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Send SMS Modal -->
-    <div class="modal fade" id="sendSmsModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="bi bi-chat-dots me-2"></i>Send SMS
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="quickSmsForm">
-                        <div class="mb-3">
-                            <label class="form-label">Phone Number</label>
-                            <div class="input-group">
-                                <span class="input-group-text">+88</span>
-                                <input type="tel" class="form-control" name="to" placeholder="1712345678"
-                                    pattern="[0-9]{10}" title="Please enter a 10-digit number" required>
-                            </div>
-                            <small class="text-muted">Enter 10-digit number without country code</small>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Message</label>
-                            <textarea class="form-control" name="message" rows="4" maxlength="160"
-                                placeholder="Type your message..." required></textarea>
-                            <div class="d-flex justify-content-between mt-1">
-                                <small class="text-muted">
-                                    <i class="bi bi-info-circle me-1"></i>
-                                    160 characters max
-                                </small>
-                                <small class="text-muted">
-                                    <span id="charCount">0</span>/160
-                                </small>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="quickSendSms">
-                        <span class="spinner-border spinner-border-sm d-none" role="status"></span>
-                        Send SMS
+                <div class="col-12">
+                    <button class="btn btn-warning" onclick="refreshConnectionStatus()">
+                        <i class="bi bi-arrow-repeat me-2"></i>Retry Connection
+                    </button>
+                    <button class="btn btn-outline-secondary ms-2" onclick="window.location.href='/settings'">
+                        <i class="bi bi-gear me-2"></i>MQTT Settings
                     </button>
                 </div>
             </div>
         </div>
     </div>
+<% } %>
 
-    <script>
-        function refreshDashboard() {
-            location.reload();
+<!-- Recent Activity Row - Always show (cached data) -->
+<div class="row g-3">
+    <!-- Recent SMS List -->
+    <div class="col-12 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fs-6 fw-semibold">
+                    <i class="bi bi-chat-dots me-2"></i>Recent SMS
+                </h5>
+                <a href="/sms" class="btn btn-sm btn-primary">
+                    <span class="d-none d-sm-inline">View All</span>
+                    <i class="bi bi-arrow-right d-sm-none"></i>
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <% if (recentSms && recentSms.length > 0) { %>
+                    <div class="list-group list-group-flush">
+                        <% recentSms.slice(0, 3).forEach(sms => { %>
+                            <div class="list-group-item list-group-item-action p-3">
+                                <div class="d-flex gap-3">
+                                    <div class="flex-shrink-0">
+                                        <div class="bg-light rounded-circle p-2">
+                                            <i class="bi bi-envelope fs-5"></i>
+                                        </div>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start gap-2">
+                                            <h6 class="mb-0">
+                                                <%= sms.from_number %>
+                                                <% if (!sms.read) { %>
+                                                    <span class="badge bg-danger ms-2">New</span>
+                                                <% } %>
+                                            </h6>
+                                            <small class="text-muted">
+                                                <%= moment(sms.timestamp).fromNow() %>
+                                            </small>
+                                        </div>
+                                        <p class="mb-0 mt-1 text-truncate">
+                                            <%= sms.message %>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        <% }); %>
+                    </div>
+                <% } else { %>
+                    <div class="text-center py-5">
+                        <i class="bi bi-inbox fs-1 text-muted"></i>
+                        <p class="text-muted mt-3 mb-0">No recent messages</p>
+                    </div>
+                <% } %>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Calls -->
+    <div class="col-12 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fs-6 fw-semibold">
+                    <i class="bi bi-telephone me-2"></i>Recent Calls
+                </h5>
+                <a href="/calls" class="btn btn-sm btn-primary">
+                    <span class="d-none d-sm-inline">View All</span>
+                    <i class="bi bi-arrow-right d-sm-none"></i>
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <% if (recentCalls && recentCalls.length > 0) { %>
+                    <div class="list-group list-group-flush">
+                        <% recentCalls.slice(0, 3).forEach(call => { %>
+                            <div class="list-group-item p-3">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="flex-shrink-0">
+                                        <div class="bg-light rounded-circle p-2">
+                                            <i class="bi bi-telephone fs-5 
+                                            <%= call.type === 'incoming' ? 'text-success' : 'text-primary' %>"></i>
+                                        </div>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex justify-content-between">
+                                            <h6 class="mb-0">
+                                                <%= call.phone_number %>
+                                            </h6>
+                                            <small class="text-muted">
+                                                <%= moment(call.start_time).fromNow() %>
+                                            </small>
+                                        </div>
+                                        <small class="text-muted">
+                                            <%= call.type === 'incoming' ? 'Incoming' : 'Outgoing' %> •
+                                            <%= call.duration > 0 ? Math.floor(call.duration / 60) + ':' + ('0' + (call.duration % 60)).slice(-2) : 'No answer' %>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        <% }); %>
+                    </div>
+                <% } else { %>
+                    <div class="text-center py-5">
+                        <i class="bi bi-telephone-x fs-1 text-muted"></i>
+                        <p class="text-muted mt-3 mb-0">No recent calls</p>
+                    </div>
+                <% } %>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Activity -->
+    <div class="col-12 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 fs-6 fw-semibold">
+                    <i class="bi bi-activity me-2"></i>System Activity
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
+                        <div>
+                            <i class="bi bi-arrow-up-circle text-success me-2"></i>
+                            Data Sent
+                        </div>
+                        <span class="badge bg-light text-dark">
+                            <%= dataUsage.sent %> MB
+                        </span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
+                        <div>
+                            <i class="bi bi-arrow-down-circle text-primary me-2"></i>
+                            Data Received
+                        </div>
+                        <span class="badge bg-light text-dark">
+                            <%= dataUsage.received %> MB
+                        </span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
+                        <div>
+                            <i class="bi bi-envelope text-warning me-2"></i>
+                            SMS Sent
+                        </div>
+                        <span class="badge bg-light text-dark">
+                            <%= dataUsage.smsSent %>
+                        </span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
+                        <div>
+                            <i class="bi bi-telephone text-info me-2"></i>
+                            Call Duration
+                        </div>
+                        <span class="badge bg-light text-dark">
+                            <%= Math.floor(dataUsage.callDuration / 60) %> min
+                        </span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
+                        <div>
+                            <i class="bi bi-person-lines-fill text-secondary me-2"></i>
+                            Contacts
+                        </div>
+                        <span class="badge bg-light text-dark">
+                            <%= contactCount %>
+                        </span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
+                        <div>
+                            <i class="bi bi-telephone-forward text-secondary me-2"></i>
+                            USSD Queries
+                        </div>
+                        <span class="badge bg-light text-dark">
+                            <%= ussdCount %>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-white py-2">
+                <small class="text-muted">
+                    <i class="bi bi-clock me-1"></i>Updated just now
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Send SMS Modal -->
+<div class="modal fade" id="sendSmsModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-chat-dots me-2"></i>Send SMS
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="quickSmsForm">
+                    <div class="mb-3">
+                        <label class="form-label">Phone Number</label>
+                        <div class="input-group">
+                            <span class="input-group-text">+88</span>
+                            <input type="tel" class="form-control" name="to" placeholder="1712345678"
+                                pattern="[0-9]{10}" title="Please enter a 10-digit number" required>
+                        </div>
+                        <small class="text-muted">Enter 10-digit number without country code</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Message</label>
+                        <textarea class="form-control" name="message" rows="4" maxlength="160"
+                            placeholder="Type your message..." required></textarea>
+                        <div class="d-flex justify-content-between mt-1">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle me-1"></i>
+                                160 characters max
+                            </small>
+                            <small class="text-muted">
+                                <span id="charCount">0</span>/160
+                            </small>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="quickSendSms">
+                    <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                    Send SMS
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function refreshDashboard() {
+        location.reload();
+    }
+
+    function quickBalance() {
+        if (!<%= isDeviceConnected %>) {
+            alert('Device is offline. Cannot check balance.');
+            return;
         }
+        fetch('/api/quick/balance', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Balance check initiated. Check USSD history for response.');
+                } else {
+                    alert('Failed to check balance: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error checking balance');
+            });
+    }
 
-        function quickBalance() {
-            fetch('/api/quick/balance', { method: 'POST' })
+    function restartModem() {
+        if (!<%= isDeviceConnected %>) {
+            alert('Device is offline. Cannot restart modem.');
+            return;
+        }
+        if (confirm('Restart modem? This will disconnect your internet connection temporarily.')) {
+            fetch('/api/quick/restart-modem', { method: 'POST' })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        alert('Balance check initiated. Check USSD history for response.');
+                        alert('Modem restart command sent');
                     } else {
-                        alert('Failed to check balance: ' + data.message);
+                        alert('Failed to restart modem: ' + data.message);
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('Error checking balance');
+                    alert('Error restarting modem');
                 });
         }
+    }
 
-        function restartModem() {
-            if (confirm('Restart modem? This will disconnect your internet connection temporarily.')) {
-                fetch('/api/quick/restart-modem', { method: 'POST' })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert('Modem restart command sent');
-                        } else {
-                            alert('Failed to restart modem: ' + data.message);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('Error restarting modem');
-                    });
-            }
+    // Character counter
+    document.addEventListener('DOMContentLoaded', function () {
+        const textarea = document.querySelector('#quickSmsForm textarea');
+        const charCount = document.getElementById('charCount');
+
+        if (textarea && charCount) {
+            textarea.addEventListener('input', function () {
+                charCount.textContent = this.value.length;
+            });
         }
-
-        // Character counter
-        document.addEventListener('DOMContentLoaded', function () {
-            const textarea = document.querySelector('#quickSmsForm textarea');
-            const charCount = document.getElementById('charCount');
-
-            if (textarea && charCount) {
-                textarea.addEventListener('input', function () {
-                    charCount.textContent = this.value.length;
-                });
-            }
-        });
-    </script>
+    });
+</script>

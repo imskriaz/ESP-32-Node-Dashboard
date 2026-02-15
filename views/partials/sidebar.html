@@ -57,16 +57,16 @@
                 <span>USSD</span>
             </a>
         </li>
+        <li class="nav-item">
+            <a href="/modem" class="nav-link <%= title === 'Modem Control' ? 'active' : '' %>">
+                <i class="bi bi-wifi"></i>
+                <span>Internet</span>
+            </a>
+        </li>
 
         <!-- Device Section -->
         <li class="nav-item mt-3">
             <small class="text-muted text-uppercase fw-bold px-2">Device</small>
-        </li>
-        <li class="nav-item">
-            <a href="/modem" class="nav-link <%= title === 'Modem Control' ? 'active' : '' %>">
-                <i class="bi bi-wifi"></i>
-                <span>Modem</span>
-            </a>
         </li>
         <li class="nav-item">
             <a href="/webcam" class="nav-link <%= title === 'Webcam' ? 'active' : '' %>">
@@ -81,7 +81,7 @@
             </a>
         </li>
         <li class="nav-item">
-            <a href="/gps" class="nav-link <%= title === 'GPS' ? 'active' : '' %>">
+            <a href="/location" class="nav-link <%= title === 'GPS' ? 'active' : '' %>">
                 <i class="bi bi-geo-alt"></i>
                 <span>GPS</span>
                 <span class="badge bg-info ms-2" id="gpsBadge" style="display: none;">3D</span>
@@ -111,10 +111,7 @@
     <div class="connection-panel mt-auto pt-3">
         <!-- Server Connection Status -->
         <div class="connection-status mb-3">
-            <div class="d-flex align-items-center justify-content-between mb-2">
-                <span class="small text-uppercase fw-bold text-muted">Status</span>
-                <span class="badge" id="serverStatusBadge">Connecting...</span>
-            </div>
+            <div class="d-flex align-items-center justify-content-between mb-2">Status</div>
             
             <!-- Server Connection -->
             <div class="status-item d-flex align-items-center mb-2" id="serverConnection">

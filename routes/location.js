@@ -3,7 +3,7 @@ const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const logger = require('../utils/logger');
 
-// In-memory location cache (in production, use database)
+// In-memory location cache
 let locationCache = new Map(); // deviceId -> { locations array }
 let lastLocations = new Map(); // deviceId -> latest location
 
