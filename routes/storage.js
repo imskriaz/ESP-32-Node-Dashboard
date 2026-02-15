@@ -66,26 +66,34 @@ router.get('/', async (req, res) => {
     }
 });
 
-// Get SD card info
+// Get SD card info via MQTT
 router.get('/info', async (req, res) => {
     try {
         const deviceId = req.query.deviceId || 'esp32-s3-1';
         
         if (!global.mqttService || !global.mqttService.connected) {
-            return res.status(503).json({
-                success: false,
-                message: 'MQTT not connected',
-                connected: false
+            return res.json({
+                success: true,
+                data: {
+                    sd: {
+                        available: false,
+                        mounted: false,
+                        total: 0,
+                        used: 0,
+                        free: 0,
+                        error: 'MQTT not connected'
+                    }
+                }
             });
         }
 
         // Request SD card info from device
         const response = await global.mqttService.publishCommand(
-            deviceId, 
-            'storage-info', 
+            deviceId,
+            'storage-info',
             {},
             true,
-            10000
+            5000
         );
 
         if (response && response.success) {
@@ -94,7 +102,7 @@ router.get('/info', async (req, res) => {
                 data: {
                     sd: {
                         available: true,
-                        mounted: true,
+                        mounted: response.mounted || false,
                         total: response.total || 0,
                         used: response.used || 0,
                         free: response.free || 0,
@@ -112,34 +120,27 @@ router.get('/info', async (req, res) => {
                         mounted: false,
                         total: 0,
                         used: 0,
-                        free: 0
+                        free: 0,
+                        error: response?.message || 'SD card not available'
                     }
                 }
             });
         }
     } catch (error) {
         logger.error('Storage info error:', error);
-        
-        if (error.message.includes('timeout')) {
-            res.json({
-                success: true,
-                data: {
-                    sd: {
-                        available: false,
-                        mounted: false,
-                        total: 0,
-                        used: 0,
-                        free: 0,
-                        error: 'Device not responding'
-                    }
+        res.json({
+            success: true,
+            data: {
+                sd: {
+                    available: false,
+                    mounted: false,
+                    total: 0,
+                    used: 0,
+                    free: 0,
+                    error: error.message
                 }
-            });
-        } else {
-            res.status(500).json({
-                success: false,
-                message: error.message
-            });
-        }
+            }
+        });
     }
 });
 

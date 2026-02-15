@@ -531,24 +531,16 @@
             return;
         }
 
-        const data = {
-            host: host,
-            port: parseInt(port),
-            username: username || '',
-            password: password || ''
-        };
-
         const btn = event.target;
         const originalHtml = btn.innerHTML;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Testing...';
         btn.disabled = true;
 
-        console.log('Testing MQTT connection with:', { host, port, username });
-
+        // Use server-side test (more reliable)
         fetch('/api/mqtt/test', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+            body: JSON.stringify({ host, port: parseInt(port), username, password })
         })
             .then(response => response.json())
             .then(data => {
@@ -559,7 +551,6 @@
                 }
             })
             .catch(error => {
-                console.error('Test error:', error);
                 showToast('Test failed: ' + error.message, 'danger');
             })
             .finally(() => {
@@ -687,38 +678,27 @@
         saveSettings('/api/settings/webcam', data, 'Webcam settings saved');
     };
 
-    // ==================== FIRMWARE SETTINGS ====================
     window.checkForUpdates = function () {
         const btn = event.target;
         const originalHtml = btn.innerHTML;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking...';
         btn.disabled = true;
 
-        fetch('/api/settings/firmware/check', {
-            method: 'POST'
-        })
+        fetch('/api/settings/firmware/check', { method: 'POST' })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     showToast(data.message, 'success');
                     if (data.data) {
-                        const availableVersion = document.getElementById('availableVersion');
-                        const lastCheck = document.getElementById('lastCheck');
-                        const updateBtn = document.getElementById('updateBtn');
-
-                        if (availableVersion) availableVersion.textContent = data.data.available || '---';
-                        if (lastCheck) lastCheck.textContent = 'Last check: just now';
-
-                        if (updateBtn) {
-                            updateBtn.style.display = data.data.updateAvailable ? 'inline-block' : 'none';
-                        }
+                        document.getElementById('availableVersion').textContent =
+                            data.data.available || '---';
+                        document.getElementById('updateBtn').style.display =
+                            data.data.updateAvailable ? 'inline-block' : 'none';
                     }
-                } else {
-                    showToast(data.message, 'danger');
                 }
             })
             .catch(error => {
-                showToast('Error checking for updates: ' + error.message, 'danger');
+                showToast('Error checking updates: ' + error.message, 'danger');
             })
             .finally(() => {
                 btn.innerHTML = originalHtml;

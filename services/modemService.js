@@ -5,7 +5,7 @@ class ModemService {
         this.devices = new Map(); // Track multiple devices
         this.wifiNetworks = [];
         this.hotspotClients = [];
-        
+
         // DO NOT create any default devices - wait for actual heartbeats
         // This ensures device only shows online when actually connected
     }
@@ -13,7 +13,7 @@ class ModemService {
     // Get status for a specific device
     getStatus(deviceId = 'esp32-s3-1') {
         const device = this.devices.get(deviceId);
-        
+
         if (!device) {
             // No device found - return offline status with all zeros
             return {
@@ -51,7 +51,50 @@ class ModemService {
             firstSeen: device.firstSeen
         };
     }
+    parseModemStatus(topic, payload) {
+        try {
+            const data = JSON.parse(payload);
+            const deviceId = topic.split('/')[1];
 
+            const status = {
+                mobile: {
+                    signalStrength: data.signal || data.csq || 0,
+                    networkType: data.network || data.mode || 'Unknown',
+                    operator: data.operator || data.reg || 'Unknown',
+                    ipAddress: data.ip || '0.0.0.0',
+                    connected: data.connected || data.reg_status === 'registered',
+                    simStatus: data.sim || 'Ready',
+                    iccid: data.iccid || '****',
+                    imei: data.imei || '****'
+                },
+                system: {
+                    battery: data.battery || data.vbat || 0,
+                    charging: data.charging || false,
+                    uptime: data.uptime || '0s',
+                    temperature: data.temp || 0,
+                    memory: data.memory || 0,
+                    sdCard: data.sd || 'Not detected'
+                },
+                wifiClient: {
+                    connected: data.wifi_connected || false,
+                    ssid: data.wifi_ssid || '',
+                    signalStrength: data.wifi_signal || 0,
+                    ipAddress: data.wifi_ip || ''
+                },
+                wifiHotspot: {
+                    enabled: data.hotspot_enabled || false,
+                    ssid: data.hotspot_ssid || '',
+                    connectedClients: data.hotspot_clients || 0
+                }
+            };
+
+            this.updateDeviceStatus(deviceId, status);
+            return status;
+        } catch (error) {
+            logger.error('Error parsing modem status:', error);
+            return null;
+        }
+    }
     // Get device status for a specific device (alias for getStatus)
     getDeviceStatus(deviceId = 'esp32-s3-1') {
         return this.getStatus(deviceId);
@@ -84,7 +127,7 @@ class ModemService {
             // Update last seen
             device.lastSeen = new Date().toISOString();
             device.online = true;
-            
+
             // Update status data
             device.status = {
                 ...device.status,
@@ -117,7 +160,7 @@ class ModemService {
             }
 
             this.devices.set(deviceId, device);
-            
+
             logger.info(`📱 Device ${deviceId} status updated`, {
                 signal: device.mobile?.signalStrength,
                 network: device.mobile?.networkType,
@@ -134,7 +177,7 @@ class ModemService {
     // Handle device heartbeat (simple ping)
     handleHeartbeat(deviceId) {
         const device = this.devices.get(deviceId);
-        
+
         if (!device) {
             // New device detected via heartbeat
             logger.info(`🆕 New device detected: ${deviceId}`);
@@ -177,9 +220,9 @@ class ModemService {
         for (const [deviceId, device] of this.devices) {
             const lastSeen = new Date(device.lastSeen);
             const wasOnline = device.online;
-            
+
             device.online = lastSeen > twoMinutesAgo;
-            
+
             if (wasOnline && !device.online) {
                 logger.warn(`⚠️ Device ${deviceId} went offline (last seen: ${device.lastSeen})`);
                 // Emit offline event
@@ -193,7 +236,7 @@ class ModemService {
                     global.io.emit('device:online', { deviceId });
                 }
             }
-            
+
             if (device.online) {
                 onlineDevices.push(deviceId);
             }
@@ -270,7 +313,7 @@ class ModemService {
     getDeviceCount() {
         return this.devices.size;
     }
-    
+
     // Reset all devices (useful for testing)
     resetDevices() {
         this.devices.clear();

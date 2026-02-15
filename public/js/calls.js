@@ -500,116 +500,116 @@
             });
     }
 
-window.muteCall = function () {
-    const muteBtn = document.querySelector('button[onclick="muteCall()"]');
-    const isMuted = muteBtn.classList.contains('active');
+    function muteCall() {
+        const muteBtn = document.querySelector('button[onclick="muteCall()"]');
+        const isMuted = muteBtn.classList.contains('active');
 
-    fetch('/api/calls/mute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mute: !isMuted })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            if (!isMuted) {
-                muteBtn.classList.add('active', 'btn-success');
-                muteBtn.classList.remove('btn-outline-success');
-                muteBtn.innerHTML = '<i class="bi bi-mic-mute"></i> Unmute';
-                showToast('Microphone muted', 'warning');
-            } else {
-                muteBtn.classList.remove('active', 'btn-success');
-                muteBtn.classList.add('btn-outline-success');
-                muteBtn.innerHTML = '<i class="bi bi-mic-mute"></i> Mute';
-                showToast('Microphone unmuted', 'info');
-            }
-        } else {
-            showToast(data.message || 'Failed to toggle mute', 'danger');
-        }
-    })
-    .catch(error => {
-        console.error('Error toggling mute:', error);
-        showToast('Error toggling mute', 'danger');
-    });
-};
-
-window.holdCall = function () {
-    const holdBtn = document.querySelector('button[onclick="holdCall()"]');
-    const isOnHold = holdBtn.classList.contains('active');
-
-    fetch('/api/calls/hold', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hold: !isOnHold })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            if (!isOnHold) {
-                holdBtn.classList.add('active', 'btn-warning');
-                holdBtn.classList.remove('btn-outline-primary');
-                holdBtn.innerHTML = '<i class="bi bi-pause"></i> Resume';
-                showToast('Call on hold', 'info');
-            } else {
-                holdBtn.classList.remove('active', 'btn-warning');
-                holdBtn.classList.add('btn-outline-primary');
-                holdBtn.innerHTML = '<i class="bi bi-pause"></i> Hold';
-                showToast('Call resumed', 'info');
-            }
-        } else {
-            showToast(data.message || 'Failed to toggle hold', 'danger');
-        }
-    })
-    .catch(error => {
-        console.error('Error toggling hold:', error);
-        showToast('Error toggling hold', 'danger');
-    });
-};
-
-window.quickCall = function (number) {
-    if (!number) return;
-
-    // Use SweetAlert2 or Bootstrap modal for better UX
-    if (confirm(`Call ${number}?`)) {
-        const callBtn = event?.target?.closest('button');
-        const originalHtml = callBtn?.innerHTML;
-        
-        if (callBtn) {
-            callBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
-            callBtn.disabled = true;
-        }
-
-        fetch('/api/calls/dial', {
+        fetch('/api/calls/mute', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ number: number })
+            body: JSON.stringify({ mute: !isMuted })
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast('Call initiated', 'success');
-                // Close any open modals
-                const dialerModal = bootstrap.Modal.getInstance(document.getElementById('dialerModal'));
-                if (dialerModal) dialerModal.hide();
-                
-                // Start checking call status
-                startCallStatusCheck();
-            } else {
-                showToast(data.message || 'Failed to make call', 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error making call:', error);
-            showToast('Error making call', 'danger');
-        })
-        .finally(() => {
-            if (callBtn) {
-                callBtn.innerHTML = originalHtml;
-                callBtn.disabled = false;
-            }
-        });
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (!isMuted) {
+                        muteBtn.classList.add('active', 'btn-success');
+                        muteBtn.classList.remove('btn-outline-success');
+                        muteBtn.innerHTML = '<i class="bi bi-mic-mute"></i> Unmute';
+                        showToast('Microphone muted', 'warning');
+                    } else {
+                        muteBtn.classList.remove('active', 'btn-success');
+                        muteBtn.classList.add('btn-outline-success');
+                        muteBtn.innerHTML = '<i class="bi bi-mic-mute"></i> Mute';
+                        showToast('Microphone unmuted', 'info');
+                    }
+                } else {
+                    showToast(data.message || 'Failed to toggle mute', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error toggling mute:', error);
+                showToast('Error toggling mute', 'danger');
+            });
     }
-};
+
+    function holdCall() {
+        const holdBtn = document.querySelector('button[onclick="holdCall()"]');
+        const isOnHold = holdBtn.classList.contains('active');
+
+        fetch('/api/calls/hold', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hold: !isOnHold })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (!isOnHold) {
+                        holdBtn.classList.add('active', 'btn-warning');
+                        holdBtn.classList.remove('btn-outline-primary');
+                        holdBtn.innerHTML = '<i class="bi bi-pause"></i> Resume';
+                        showToast('Call on hold', 'info');
+                    } else {
+                        holdBtn.classList.remove('active', 'btn-warning');
+                        holdBtn.classList.add('btn-outline-primary');
+                        holdBtn.innerHTML = '<i class="bi bi-pause"></i> Hold';
+                        showToast('Call resumed', 'info');
+                    }
+                } else {
+                    showToast(data.message || 'Failed to toggle hold', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error toggling hold:', error);
+                showToast('Error toggling hold', 'danger');
+            });
+    }
+
+    function quickCall(number) {
+        if (!number) return;
+
+        // Use SweetAlert2 or Bootstrap modal for better UX
+        if (confirm(`Call ${number}?`)) {
+            const callBtn = event?.target?.closest('button');
+            const originalHtml = callBtn?.innerHTML;
+
+            if (callBtn) {
+                callBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+                callBtn.disabled = true;
+            }
+
+            fetch('/api/calls/dial', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ number: number })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Call initiated', 'success');
+                        // Close any open modals
+                        const dialerModal = bootstrap.Modal.getInstance(document.getElementById('dialerModal'));
+                        if (dialerModal) dialerModal.hide();
+
+                        // Start checking call status
+                        startCallStatusCheck();
+                    } else {
+                        showToast(data.message || 'Failed to make call', 'danger');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error making call:', error);
+                    showToast('Error making call', 'danger');
+                })
+                .finally(() => {
+                    if (callBtn) {
+                        callBtn.innerHTML = originalHtml;
+                        callBtn.disabled = false;
+                    }
+                });
+        }
+    }
 
     window.quickSms = function (number) {
         if (!number) return;

@@ -85,8 +85,8 @@
 
         history.forEach(item => {
             const date = new Date(item.timestamp).toLocaleString();
-            const statusBadge = item.status === 'success' ? 'bg-success' : 
-                               item.status === 'pending' ? 'bg-warning' : 'bg-danger';
+            const statusBadge = item.status === 'success' ? 'bg-success' :
+                item.status === 'pending' ? 'bg-warning' : 'bg-danger';
 
             // Table row
             tableHtml += `
@@ -192,24 +192,24 @@
         fetch(`/api/ussd/history/${id}`, {
             method: 'DELETE'
         })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                showToast('History deleted', 'success');
-                loadHistory(currentPage);
-            } else {
-                showToast(data.message || 'Failed to delete', 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error deleting history:', error);
-            showToast('Error deleting history', 'danger');
-        });
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showToast('History deleted', 'success');
+                    loadHistory(currentPage);
+                } else {
+                    showToast(data.message || 'Failed to delete', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting history:', error);
+                showToast('Error deleting history', 'danger');
+            });
     }
 
     function clearHistory() {
@@ -218,24 +218,24 @@
         fetch('/api/ussd/history', {
             method: 'DELETE'
         })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                showToast('All history cleared', 'success');
-                loadHistory(1);
-            } else {
-                showToast(data.message || 'Failed to clear', 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error clearing history:', error);
-            showToast('Error clearing history', 'danger');
-        });
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showToast('All history cleared', 'success');
+                    loadHistory(1);
+                } else {
+                    showToast(data.message || 'Failed to clear', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error clearing history:', error);
+                showToast('Error clearing history', 'danger');
+            });
     }
 
     // ==================== USSD DIALER FUNCTIONS ====================
@@ -276,53 +276,53 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code })
         })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                showToast('USSD request sent', 'success');
-                
-                responseDiv.innerHTML = `
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showToast('USSD request sent', 'success');
+
+                    responseDiv.innerHTML = `
                     <div class="text-center py-4">
                         <div class="spinner-border text-primary" role="status"></div>
                         <p class="mt-2">Waiting for response...</p>
                         <p class="text-muted small">Request ID: ${data.data.id}</p>
                     </div>
                 `;
-                
-                loadHistory(1);
-                loadRecentCodes();
-            } else {
-                responseDiv.innerHTML = `
+
+                    loadHistory(1);
+                    loadRecentCodes();
+                } else {
+                    responseDiv.innerHTML = `
                     <div class="text-center py-4 text-danger">
                         <i class="bi bi-exclamation-triangle fs-1 d-block mb-3"></i>
                         <p>${data.message || 'Failed to send USSD request'}</p>
                     </div>
                 `;
-                showToast(data.message || 'Failed to send USSD', 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            responseDiv.innerHTML = `
+                    showToast(data.message || 'Failed to send USSD', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                responseDiv.innerHTML = `
                 <div class="text-center py-4 text-danger">
                     <i class="bi bi-exclamation-triangle fs-1 d-block mb-3"></i>
                     <p>Connection error: ${error.message}</p>
                     <button class="btn btn-outline-primary mt-3" onclick="sendUSSD()">Try Again</button>
                 </div>
             `;
-            showToast('Error sending USSD: ' + error.message, 'danger');
-        })
-        .finally(() => {
-            if (sendBtn) {
-                sendBtn.innerHTML = originalHtml;
-                sendBtn.disabled = false;
-            }
-        });
+                showToast('Error sending USSD: ' + error.message, 'danger');
+            })
+            .finally(() => {
+                if (sendBtn) {
+                    sendBtn.innerHTML = originalHtml;
+                    sendBtn.disabled = false;
+                }
+            });
     }
 
     function loadRecentCodes() {
@@ -372,7 +372,13 @@
     }
 
     function viewResponse(response) {
-        document.getElementById('modalResponse').innerHTML = response.replace(/\n/g, '<br>');
+        const modalResponse = document.getElementById('modalResponse');
+        // Format as plain text with line breaks
+        modalResponse.innerHTML = response
+            .replace(/\\n/g, '<br>')
+            .replace(/\\r/g, '')
+            .replace(/[\\]/g, '');
+
         const modal = new bootstrap.Modal(document.getElementById('ussdResponseModal'));
         modal.show();
     }
@@ -557,35 +563,35 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled })
         })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                showToast(`Service ${enabled ? 'enabled' : 'disabled'}`, 'success');
-                loadSettings();
-                loadEnabledSettings();
-            } else {
-                showToast(data.message || 'Failed to toggle service', 'danger');
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showToast(`Service ${enabled ? 'enabled' : 'disabled'}`, 'success');
+                    loadSettings();
+                    loadEnabledSettings();
+                } else {
+                    showToast(data.message || 'Failed to toggle service', 'danger');
+                    // Revert checkbox
+                    const checkbox = document.querySelector(`input[onchange*="toggleService('${key}'"]`);
+                    if (checkbox) {
+                        checkbox.checked = !enabled;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error toggling service:', error);
+                showToast('Error toggling service', 'danger');
                 // Revert checkbox
                 const checkbox = document.querySelector(`input[onchange*="toggleService('${key}'"]`);
                 if (checkbox) {
                     checkbox.checked = !enabled;
                 }
-            }
-        })
-        .catch(error => {
-            console.error('Error toggling service:', error);
-            showToast('Error toggling service', 'danger');
-            // Revert checkbox
-            const checkbox = document.querySelector(`input[onchange*="toggleService('${key}'"]`);
-            if (checkbox) {
-                checkbox.checked = !enabled;
-            }
-        });
+            });
     }
 
     function showAddServiceModal() {
@@ -649,7 +655,7 @@
 
         const saveBtn = document.querySelector('button[onclick="saveService()"]');
         const originalHtml = saveBtn?.innerHTML;
-        
+
         if (saveBtn) {
             saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Saving...';
             saveBtn.disabled = true;
@@ -663,35 +669,35 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                showToast(key ? 'Service updated' : 'Service created', 'success');
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showToast(key ? 'Service updated' : 'Service created', 'success');
 
-                const modal = bootstrap.Modal.getInstance(document.getElementById('serviceModal'));
-                if (modal) modal.hide();
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('serviceModal'));
+                    if (modal) modal.hide();
 
-                loadSettings();
-                loadEnabledSettings();
-            } else {
-                showToast(data.message || 'Failed to save service', 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error saving service:', error);
-            showToast('Error saving service: ' + error.message, 'danger');
-        })
-        .finally(() => {
-            if (saveBtn) {
-                saveBtn.innerHTML = originalHtml;
-                saveBtn.disabled = false;
-            }
-        });
+                    loadSettings();
+                    loadEnabledSettings();
+                } else {
+                    showToast(data.message || 'Failed to save service', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error saving service:', error);
+                showToast('Error saving service: ' + error.message, 'danger');
+            })
+            .finally(() => {
+                if (saveBtn) {
+                    saveBtn.innerHTML = originalHtml;
+                    saveBtn.disabled = false;
+                }
+            });
     }
 
     function deleteService(key) {
@@ -700,29 +706,29 @@
         fetch(`/api/ussd/settings/${key}`, {
             method: 'DELETE'
         })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                showToast('Service deleted', 'success');
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showToast('Service deleted', 'success');
 
-                const modal = bootstrap.Modal.getInstance(document.getElementById('serviceModal'));
-                if (modal) modal.hide();
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('serviceModal'));
+                    if (modal) modal.hide();
 
-                loadSettings();
-                loadEnabledSettings();
-            } else {
-                showToast(data.message || 'Failed to delete service', 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error deleting service:', error);
-            showToast('Error deleting service', 'danger');
-        });
+                    loadSettings();
+                    loadEnabledSettings();
+                } else {
+                    showToast(data.message || 'Failed to delete service', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting service:', error);
+                showToast('Error deleting service', 'danger');
+            });
     }
 
     // ==================== SOCKET LISTENERS ====================
@@ -741,7 +747,7 @@
 
         socket.on('ussd:response', (data) => {
             console.log('USSD response received:', data);
-            
+
             // Update response display
             const responseDiv = document.getElementById('ussdResponse');
             if (responseDiv) {
@@ -753,7 +759,7 @@
                     </div>
                 `;
             }
-            
+
             showToast('New USSD response received', 'info');
             loadHistory(1);
             loadRecentCodes();
@@ -791,13 +797,20 @@
             .then(data => {
                 if (data.success && data.data.active) {
                     currentSession = data.data;
-                    document.getElementById('sessionStatus').textContent = 'Session Active';
+                    document.getElementById('sessionStatus').textContent =
+                        `Session Active (Level ${data.data.menuLevel})`;
                     document.getElementById('sessionStatus').className = 'badge bg-success';
                     document.getElementById('endSessionBtn').style.display = 'inline-block';
+
+                    // Show menu if applicable
+                    if (data.data.menuOptions && data.data.menuOptions.length > 0) {
+                        showMenuOptions(data.data.menuOptions);
+                    }
                 } else {
                     document.getElementById('sessionStatus').textContent = 'No Active Session';
                     document.getElementById('sessionStatus').className = 'badge bg-info';
                     document.getElementById('endSessionBtn').style.display = 'none';
+                    document.getElementById('menuNavigation').style.display = 'none';
                 }
             })
             .catch(console.error);
@@ -807,18 +820,18 @@
         fetch('/api/ussd/session/end', {
             method: 'POST'
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                currentSession = null;
-                document.getElementById('sessionStatus').textContent = 'No Active Session';
-                document.getElementById('sessionStatus').className = 'badge bg-info';
-                document.getElementById('endSessionBtn').style.display = 'none';
-                document.getElementById('menuNavigation').style.display = 'none';
-                showToast('Session ended', 'success');
-            }
-        })
-        .catch(console.error);
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    currentSession = null;
+                    document.getElementById('sessionStatus').textContent = 'No Active Session';
+                    document.getElementById('sessionStatus').className = 'badge bg-info';
+                    document.getElementById('endSessionBtn').style.display = 'none';
+                    document.getElementById('menuNavigation').style.display = 'none';
+                    showToast('Session ended', 'success');
+                }
+            })
+            .catch(console.error);
     }
 
     function refreshUssdData() {
@@ -944,28 +957,28 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ order: keys })
                 })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success) {
-                        showToast('Services reordered', 'success');
-                        loadSettings();
-                        loadEnabledSettings();
-                    } else {
-                        showToast(data.message || 'Failed to save order', 'danger');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error saving order:', error);
-                    showToast('Error saving order', 'danger');
-                })
-                .finally(() => {
-                    if (saveIndicator) saveIndicator.style.display = 'none';
-                });
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            showToast('Services reordered', 'success');
+                            loadSettings();
+                            loadEnabledSettings();
+                        } else {
+                            showToast(data.message || 'Failed to save order', 'danger');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error saving order:', error);
+                        showToast('Error saving order', 'danger');
+                    })
+                    .finally(() => {
+                        if (saveIndicator) saveIndicator.style.display = 'none';
+                    });
             });
         });
     }

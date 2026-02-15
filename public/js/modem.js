@@ -185,25 +185,14 @@
             });
     }
 
-    // Set APN preset
     function setAPN(apn, username, password, auth) {
         document.getElementById('apnName').value = apn;
-        document.getElementById('apnUsername').value = username;
-        document.getElementById('apnPassword').value = password;
-        document.getElementById('apnAuth').value = auth;
+        document.getElementById('apnUsername').value = username || '';
+        document.getElementById('apnPassword').value = password || '';
+        document.getElementById('apnAuth').value = auth || 'none';
 
-        // Auto-save with visual feedback
-        const saveBtn = document.querySelector('button[onclick="saveAPN()"]');
-        const originalText = saveBtn.innerHTML;
-        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving...';
-        saveBtn.disabled = true;
-
-        saveAPN().finally(() => {
-            setTimeout(() => {
-                saveBtn.innerHTML = originalText;
-                saveBtn.disabled = false;
-            }, 1000);
-        });
+        // Show visual feedback
+        showToast(`APN preset: ${apn}`, 'info');
     }
 
     // ==================== WIFI CLIENT FUNCTIONS ====================
@@ -260,38 +249,43 @@
         </div>
     `;
 
-        fetch('/api/modem/wifi/client/scan')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('Scan initiated', 'success');
-                    // Results will come via WebSocket
-                    // Display whatever is already in modemService
-                    setTimeout(() => {
-                        fetch('/api/modem/status')
-                            .then(res => res.json())
-                            .then(statusData => {
-                                if (statusData.success && statusData.data.wifiNetworks) {
-                                    displayWiFiNetworks(statusData.data.wifiNetworks);
-                                }
-                            });
-                    }, 3000);
+        if (typeof socket !== 'undefined' && socket.connected) {
+            socket.emit('modem:scan-wifi', { deviceId: 'esp32-s3-1' });
+
+            // Listen for results
+            socket.once('modem:wifi-scan', (data) => {
+                if (data.networks && data.networks.length > 0) {
+                    displayWiFiNetworks(data.networks);
                 } else {
-                    throw new Error(data.message);
+                    list.innerHTML = `
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-wifi fs-1 d-block mb-3"></i>
+                        <p>No networks found</p>
+                        <button class="btn btn-sm btn-outline-primary" onclick="scanWiFiNetworks()">
+                            Try Again
+                        </button>
+                    </div>
+                `;
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                list.innerHTML = `
-                <div class="text-center py-4 text-danger">
-                    <i class="bi bi-exclamation-triangle fs-1 d-block mb-3"></i>
-                    <p>Failed to scan networks</p>
-                    <button class="btn btn-sm btn-outline-danger" onclick="scanWiFiNetworks()">
-                        <i class="bi bi-arrow-repeat"></i> Retry
-                    </button>
-                </div>
-            `;
             });
+        } else {
+            // Fallback to API
+            fetch('/api/modem/wifi/client/scan')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayWiFiNetworks(data.data);
+                    }
+                })
+                .catch(error => {
+                    list.innerHTML = `
+                    <div class="text-center py-4 text-danger">
+                        <i class="bi bi-exclamation-triangle fs-1 d-block mb-3"></i>
+                        <p>Failed to scan: ${error.message}</p>
+                    </div>
+                `;
+                });
+        }
     }
 
     // Display WiFi networks

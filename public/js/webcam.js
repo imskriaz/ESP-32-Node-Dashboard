@@ -97,15 +97,16 @@
             streamStatus.textContent = 'Streaming';
             streamStatus.className = 'badge bg-success';
 
-            // Refresh periodically to keep stream alive
+            // Refresh stream periodically
             if (window.streamInterval) {
                 clearInterval(window.streamInterval);
             }
+            // Refresh every second to prevent timeout
             window.streamInterval = setInterval(() => {
                 if (webcamEnabled) {
                     feedImg.src = '/api/webcam/stream?' + Date.now();
                 }
-            }, 1000 / (currentSettings.fps || 15));
+            }, 1000);
         } else {
             if (window.streamInterval) {
                 clearInterval(window.streamInterval);
@@ -228,33 +229,48 @@
             captureBtn.disabled = true;
         }
 
-        showToast('Capturing image...', 'info');
-
-        fetch('/api/webcam/capture', {
-            method: 'POST'
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('Capture command sent', 'success');
-                    // Image will come via WebSocket
-                } else {
-                    showToast(data.message || 'Failed to capture image', 'danger');
-                }
-            })
-            .catch(error => {
-                console.error('Error capturing image:', error);
-                showToast('Error capturing image', 'danger');
-            })
-            .finally(() => {
-                if (captureBtn) {
-                    captureBtn.innerHTML = originalHtml;
-                    captureBtn.disabled = false;
+        // Send capture command via MQTT
+        if (typeof socket !== 'undefined' && socket.connected) {
+            socket.emit('webcam:capture', { deviceId: 'esp32-s3-1' });
+            showToast('Capture command sent', 'info');
+            
+            // The response will come via socket event
+            socket.once('webcam:capture', (data) => {
+                showToast('Image captured', 'success');
+                loadLatestCapture();
+                loadCaptureHistory();
+                
+                // Show in modal
+                const modalCapture = document.getElementById('modalCapture');
+                const modalCaptureInfo = document.getElementById('modalCaptureInfo');
+                if (modalCapture) {
+                    modalCapture.src = data.path + '?' + Date.now();
+                    modalCaptureInfo.textContent = `Captured: ${new Date().toLocaleString()}`;
+                    const modal = new bootstrap.Modal(document.getElementById('captureModal'));
+                    modal.show();
                 }
             });
+        } else {
+            // Fallback to API
+            fetch('/api/webcam/capture', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Image captured', 'success');
+                        loadLatestCapture();
+                        loadCaptureHistory();
+                    }
+                })
+                .catch(error => showToast('Capture failed: ' + error.message, 'danger'))
+                .finally(() => {
+                    if (captureBtn) {
+                        captureBtn.innerHTML = originalHtml;
+                        captureBtn.disabled = false;
+                    }
+                });
+        }
     }
 
-    // Add WebSocket listener for new captures
     if (typeof socket !== 'undefined') {
         socket.on('webcam:capture', (data) => {
             showToast('New image captured', 'success');

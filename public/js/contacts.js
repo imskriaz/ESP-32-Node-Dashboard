@@ -1,7 +1,7 @@
 // Contacts management page
-(function() {
+(function () {
     'use strict';
-    
+
     console.log('Contacts.js loaded - ' + new Date().toISOString());
 
     // State
@@ -19,14 +19,14 @@
 
     function init() {
         console.log('Initializing Contacts page...');
-        
+
         // Load contacts
         loadContacts();
-        
+
         // Attach event listeners
         attachSearchListener();
         attachModalListeners();
-        
+
         // Double-check save button
         const saveBtn = document.getElementById('saveContactBtn');
         if (saveBtn) {
@@ -38,16 +38,16 @@
     // Load contacts from API
     function loadContacts(page = 1) {
         currentPage = page;
-        
+
         let url = `/api/contacts?page=${page}&limit=12`;
-        
+
         if (document.getElementById('searchContacts')) {
             const search = document.getElementById('searchContacts').value;
             if (search) {
                 url += `&search=${encodeURIComponent(search)}`;
             }
         }
-        
+
         fetch(url)
             .then(response => {
                 if (!response.ok) {
@@ -59,13 +59,13 @@
                 console.log('Contacts loaded:', data);
                 if (data.success) {
                     allContacts = data.data;
-                    
+
                     // Apply favorite filter if needed
                     let filteredContacts = allContacts;
                     if (currentFilter === 'favorites') {
                         filteredContacts = allContacts.filter(c => c.favorite === 1);
                     }
-                    
+
                     displayContacts(filteredContacts);
                     updateStats(data.data, data.pagination);
                     updatePagination(data.pagination);
@@ -81,7 +81,7 @@
     function displayContacts(contacts) {
         const container = document.getElementById('contactsContainer');
         if (!container) return;
-        
+
         if (!contacts || contacts.length === 0) {
             container.innerHTML = `
                 <div class="col-12 text-center py-5">
@@ -94,15 +94,15 @@
             `;
             return;
         }
-        
+
         let html = '';
         contacts.forEach(contact => {
             const avatarColor = getAvatarColor(contact.name);
             const initials = getInitials(contact.name);
-            const favorite = contact.favorite ? 
-                '<i class="bi bi-star-fill text-warning" title="Favorite"></i>' : 
+            const favorite = contact.favorite ?
+                '<i class="bi bi-star-fill text-warning" title="Favorite"></i>' :
                 '<i class="bi bi-star text-muted" title="Not favorite"></i>';
-            
+
             html += `
                 <div class="col-12 col-md-6 col-lg-4 mb-3">
                     <div class="contact-card p-3" data-contact-id="${contact.id}">
@@ -151,17 +151,17 @@
                 </div>
             `;
         });
-        
+
         container.innerHTML = html;
     }
 
     // Update statistics
     function updateStats(contacts, pagination) {
         document.getElementById('totalContacts').textContent = pagination.total;
-        
+
         const favorites = contacts.filter(c => c.favorite === 1).length;
         const companies = contacts.filter(c => c.company && c.company.trim() !== '').length;
-        
+
         document.getElementById('favoriteCount').textContent = favorites;
         document.getElementById('companyCount').textContent = companies;
     }
@@ -170,17 +170,17 @@
     function updatePagination(pagination) {
         currentPage = pagination.page;
         totalPages = pagination.pages;
-        
+
         const container = document.getElementById('contactsPagination');
         if (!container) return;
-        
+
         if (totalPages <= 1) {
             container.innerHTML = '';
             return;
         }
-        
+
         let html = '';
-        
+
         // Previous
         html += `
             <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
@@ -189,7 +189,7 @@
                 </a>
             </li>
         `;
-        
+
         // Pages
         for (let i = 1; i <= pagination.pages; i++) {
             if (i === 1 || i === pagination.pages || (i >= currentPage - 2 && i <= currentPage + 2)) {
@@ -202,7 +202,7 @@
                 html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
             }
         }
-        
+
         // Next
         html += `
             <li class="page-item ${currentPage === pagination.pages ? 'disabled' : ''}">
@@ -211,7 +211,7 @@
                 </a>
             </li>
         `;
-        
+
         container.innerHTML = html;
     }
 
@@ -220,7 +220,7 @@
         const searchInput = document.getElementById('searchContacts');
         if (searchInput) {
             let timeout;
-            searchInput.addEventListener('input', function() {
+            searchInput.addEventListener('input', function () {
                 clearTimeout(timeout);
                 timeout = setTimeout(() => {
                     loadContacts(1);
@@ -232,48 +232,54 @@
     // Filter favorites
     function filterFavorites(showFavorites) {
         currentFilter = showFavorites ? 'favorites' : 'all';
-        
+
         let filteredContacts = allContacts;
         if (showFavorites) {
             filteredContacts = allContacts.filter(c => c.favorite === 1);
         }
-        
+
         displayContacts(filteredContacts);
     }
 
-    // Attach modal listeners
     function attachModalListeners() {
         const saveBtn = document.getElementById('saveContactBtn');
         if (saveBtn) {
-            saveBtn.addEventListener('click', saveContact);
+            // Remove existing listeners
+            const newSaveBtn = saveBtn.cloneNode(true);
+            saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+            newSaveBtn.addEventListener('click', saveContact);
         }
-        
+
         const deleteBtn = document.getElementById('deleteContactBtn');
         if (deleteBtn) {
-            deleteBtn.addEventListener('click', function() {
+            const newDeleteBtn = deleteBtn.cloneNode(true);
+            deleteBtn.parentNode.replaceChild(newDeleteBtn, deleteBtn);
+            newDeleteBtn.addEventListener('click', function () {
                 const id = document.getElementById('contactId').value;
                 if (id) deleteContact(id);
             });
         }
-        
-        // Reset modal on hide
-        const modal = document.getElementById('addContactModal');
-        if (modal) {
-            modal.addEventListener('hidden.bs.modal', function() {
-                document.getElementById('contactForm').reset();
-                document.getElementById('contactId').value = '';
-                document.getElementById('deleteContactBtn').classList.add('d-none');
-            });
-        }
     }
 
+    function validatePhoneNumber(phone) {
+        const digits = phone.replace(/\D/g, '');
+        if (digits.length === 0) return false;
+
+        // BD numbers: 10 digits (mobile) or 11 digits with leading 0
+        if (digits.length === 10) return true;
+        if (digits.length === 11 && digits.startsWith('0')) return true;
+        if (digits.length === 13 && digits.startsWith('88')) return true;
+        if (digits.length === 14 && digits.startsWith('880')) return true;
+
+        return false;
+    }
     // Show add contact modal
     function showAddContactModal() {
         document.getElementById('contactModalTitle').textContent = 'Add New Contact';
         document.getElementById('contactForm').reset();
         document.getElementById('contactId').value = '';
         document.getElementById('deleteContactBtn').classList.add('d-none');
-        
+
         const modal = new bootstrap.Modal(document.getElementById('addContactModal'));
         modal.show();
     }
@@ -281,7 +287,7 @@
     // Save contact
     function saveContact() {
         console.log('Saving contact...');
-        
+
         // Get form values
         const id = document.getElementById('contactId').value;
         const name = document.getElementById('contactName').value.trim();
@@ -290,26 +296,26 @@
         const company = document.getElementById('contactCompany').value.trim();
         const favorite = document.getElementById('contactFavorite').checked;
         const notes = document.getElementById('contactNotes').value.trim();
-        
+
         console.log('Form data:', { id, name, phone, email, company, favorite, notes });
-        
+
         // Validate required fields
         if (!name) {
             alert('Name is required');
             document.getElementById('contactName').classList.add('is-invalid');
             return;
         }
-        
+
         if (!phone) {
             alert('Phone number is required');
             document.getElementById('contactPhone').classList.add('is-invalid');
             return;
         }
-        
+
         // Remove invalid class
         document.getElementById('contactName').classList.remove('is-invalid');
         document.getElementById('contactPhone').classList.remove('is-invalid');
-        
+
         // Prepare data
         const data = {
             name: name,
@@ -319,18 +325,18 @@
             favorite: favorite,
             notes: notes || null
         };
-        
+
         console.log('Sending data:', data);
-        
+
         const url = id ? `/api/contacts/${id}` : '/api/contacts';
         const method = id ? 'PUT' : 'POST';
-        
+
         // Show loading
         const saveBtn = document.getElementById('saveContactBtn');
         const originalText = saveBtn.innerHTML;
         saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Saving...';
         saveBtn.disabled = true;
-        
+
         fetch(url, {
             method: method,
             headers: {
@@ -338,44 +344,44 @@
             },
             body: JSON.stringify(data)
         })
-        .then(async response => {
-            const text = await response.text();
-            console.log('Raw response:', text);
-            
-            try {
-                const data = JSON.parse(text);
-                if (!response.ok) {
-                    throw new Error(data.message || 'Server error');
+            .then(async response => {
+                const text = await response.text();
+                console.log('Raw response:', text);
+
+                try {
+                    const data = JSON.parse(text);
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Server error');
+                    }
+                    return data;
+                } catch (e) {
+                    throw new Error('Invalid JSON response from server');
                 }
-                return data;
-            } catch (e) {
-                throw new Error('Invalid JSON response from server');
-            }
-        })
-        .then(data => {
-            console.log('Save response:', data);
-            
-            if (data.success) {
-                // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('addContactModal'));
-                if (modal) modal.hide();
-                
-                alert(id ? 'Contact updated successfully!' : 'Contact created successfully!');
-                
-                // Reload contacts
-                loadContacts(1);
-            } else {
-                alert(data.message || 'Failed to save contact');
-            }
-        })
-        .catch(error => {
-            console.error('Error saving contact:', error);
-            alert('Error saving contact: ' + error.message);
-        })
-        .finally(() => {
-            saveBtn.innerHTML = originalText;
-            saveBtn.disabled = false;
-        });
+            })
+            .then(data => {
+                console.log('Save response:', data);
+
+                if (data.success) {
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('addContactModal'));
+                    if (modal) modal.hide();
+
+                    alert(id ? 'Contact updated successfully!' : 'Contact created successfully!');
+
+                    // Reload contacts
+                    loadContacts(1);
+                } else {
+                    alert(data.message || 'Failed to save contact');
+                }
+            })
+            .catch(error => {
+                console.error('Error saving contact:', error);
+                alert('Error saving contact: ' + error.message);
+            })
+            .finally(() => {
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+            });
     }
 
     // View contact details
@@ -395,7 +401,7 @@
         const container = document.getElementById('contactDetailContent');
         const avatarColor = getAvatarColor(contact.name);
         const initials = getInitials(contact.name);
-        
+
         container.innerHTML = `
             <div class="text-center mb-4">
                 <div class="contact-avatar mx-auto mb-3" style="background-color: ${avatarColor}; width: 80px; height: 80px; font-size: 2rem;">
@@ -430,9 +436,9 @@
                 ` : ''}
             </div>
         `;
-        
+
         window.currentContact = contact;
-        
+
         const modal = new bootstrap.Modal(document.getElementById('contactDetailModal'));
         modal.show();
     }
@@ -444,7 +450,7 @@
             .then(data => {
                 if (data.success) {
                     const contact = data.data;
-                    
+
                     document.getElementById('contactId').value = contact.id;
                     document.getElementById('contactName').value = contact.name || '';
                     document.getElementById('contactPhone').value = contact.phone_number || '';
@@ -452,10 +458,10 @@
                     document.getElementById('contactCompany').value = contact.company || '';
                     document.getElementById('contactFavorite').checked = contact.favorite === 1;
                     document.getElementById('contactNotes').value = contact.notes || '';
-                    
+
                     document.getElementById('contactModalTitle').textContent = 'Edit Contact';
                     document.getElementById('deleteContactBtn').classList.remove('d-none');
-                    
+
                     const modal = new bootstrap.Modal(document.getElementById('addContactModal'));
                     modal.show();
                 }
@@ -468,7 +474,7 @@
         if (window.currentContact) {
             const modal = bootstrap.Modal.getInstance(document.getElementById('contactDetailModal'));
             if (modal) modal.hide();
-            
+
             setTimeout(() => {
                 editContact(window.currentContact.id);
             }, 300);
@@ -480,31 +486,31 @@
         if (!id) {
             id = document.getElementById('contactId').value;
         }
-        
+
         if (!id) return;
-        
+
         if (!confirm('Are you sure you want to delete this contact?')) return;
-        
+
         fetch(`/api/contacts/${id}`, {
             method: 'DELETE'
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Close modal if open
-                const modal = bootstrap.Modal.getInstance(document.getElementById('addContactModal'));
-                if (modal) modal.hide();
-                
-                alert('Contact deleted successfully');
-                loadContacts(1);
-            } else {
-                alert(data.message || 'Failed to delete contact');
-            }
-        })
-        .catch(error => {
-            console.error('Error deleting contact:', error);
-            alert('Error deleting contact');
-        });
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Close modal if open
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('addContactModal'));
+                    if (modal) modal.hide();
+
+                    alert('Contact deleted successfully');
+                    loadContacts(1);
+                } else {
+                    alert(data.message || 'Failed to delete contact');
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting contact:', error);
+                alert('Error deleting contact');
+            });
     }
 
     // Toggle favorite
@@ -516,13 +522,13 @@
             },
             body: JSON.stringify({ favorite })
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                loadContacts(currentPage);
-            }
-        })
-        .catch(console.error);
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadContacts(currentPage);
+                }
+            })
+            .catch(console.error);
     }
 
     // Quick call
