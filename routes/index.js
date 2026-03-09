@@ -333,21 +333,15 @@ router.get('/ussd', async (req, res) => {
     }
 });
 
-router.get('/webcam', async (req, res) => {
+router.get('/intercom', async (req, res) => {
     try {
-        const db = req.app.locals.db;
-        
-        // Get webcam settings
-        const webcamSettings = await db.get('SELECT * FROM webcam WHERE id = 1');
-
-        res.render('pages/webcam', {
-            title: 'Webcam',
-            settings: webcamSettings || {},
+        res.render('pages/intercom', {
+            title: 'Intercom',
             user: req.session.user
         });
     } catch (error) {
-        logger.error('Webcam page error:', error);
-        req.flash('error', 'Failed to load webcam page');
+        logger.error('Intercom page error:', error);
+        req.flash('error', 'Failed to load intercom page');
         res.redirect('/');
     }
 });

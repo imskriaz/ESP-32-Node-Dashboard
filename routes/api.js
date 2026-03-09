@@ -7,7 +7,7 @@ router.use('/contacts', require('./contacts'));
 router.use('/status', require('./status'));
 router.use('/modem', require('./modem'));
 router.use('/ussd', require('./ussd'));
-router.use('/webcam', require('./webcam'));
+router.use('/intercom', require('./intercom'));
 router.use('/settings', require('./settings'));
 router.use('/storage', require('./storage'));
 router.use('/location', require('./location'));

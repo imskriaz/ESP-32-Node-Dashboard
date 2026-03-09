@@ -188,49 +188,47 @@ async function initializeDatabase() {
             )
         `);
 
-        // Create webcam table
+        // Create intercom settings table
         await db.exec(`
-            CREATE TABLE IF NOT EXISTS webcam (
+            CREATE TABLE IF NOT EXISTS intercom_settings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT DEFAULT 'ESP32-CAM',
-                enabled BOOLEAN DEFAULT 0,
+                device_id TEXT NOT NULL UNIQUE,
+                video_enabled BOOLEAN DEFAULT 0,
+                audio_enabled BOOLEAN DEFAULT 0,
                 resolution TEXT DEFAULT '640x480',
                 fps INTEGER DEFAULT 15,
                 quality INTEGER DEFAULT 80,
-                brightness INTEGER DEFAULT 0,
-                contrast INTEGER DEFAULT 0,
-                saturation INTEGER DEFAULT 0,
-                sharpness INTEGER DEFAULT 0,
-                flip_horizontal BOOLEAN DEFAULT 0,
-                flip_vertical BOOLEAN DEFAULT 0,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_frame BLOB,
-                motion_detection BOOLEAN DEFAULT 0,
-                motion_sensitivity INTEGER DEFAULT 50,
-                recording BOOLEAN DEFAULT 0,
-                stream_url TEXT,
-                settings JSON,
-                face_detection BOOLEAN DEFAULT 0,
-                face_recognition BOOLEAN DEFAULT 0,
-                alert_on_motion BOOLEAN DEFAULT 0
+                audio_bitrate INTEGER DEFAULT 64000,
+                echo_cancellation BOOLEAN DEFAULT 1,
+                noise_suppression BOOLEAN DEFAULT 1,
+                auto_gain_control BOOLEAN DEFAULT 1,
+                mic_sensitivity INTEGER DEFAULT 50,
+                speaker_volume INTEGER DEFAULT 80,
+                stun_server TEXT DEFAULT 'stun.l.google.com:19302',
+                turn_server TEXT,
+                turn_username TEXT,
+                turn_password TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `);
 
-        // Create webcam_captures table
+        // Create intercom calls history table
         await db.exec(`
-            CREATE TABLE IF NOT EXISTS webcam_captures (
+            CREATE TABLE IF NOT EXISTS intercom_calls (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                filename TEXT NOT NULL,
-                path TEXT NOT NULL,
-                size INTEGER,
-                width INTEGER,
-                height INTEGER,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                type TEXT DEFAULT 'manual',
-                motion_detected BOOLEAN DEFAULT 0,
-                tags TEXT,
-                UNIQUE(path)
+                device_id TEXT NOT NULL,
+                type TEXT DEFAULT 'video', -- 'video' or 'audio'
+                duration INTEGER DEFAULT 0,
+                start_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+                end_time DATETIME,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
+        `);
+
+        // Create indexes
+        await db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_intercom_calls_device ON intercom_calls(device_id, start_time);
         `);
 
         // Create storage_files table

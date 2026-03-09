@@ -12,44 +12,43 @@ router.get('/logs', async (req, res) => {
         }
 
         const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 20;
+        const limit = parseInt(req.query.limit) || 10;
         const offset = (page - 1) * limit;
 
-        // FIXED: Better query to get contact names
+        // Get total count
+        const totalCount = await db.get('SELECT COUNT(*) as count FROM calls');
+
+        // Get calls with contact information
         const calls = await db.all(`
             SELECT 
                 c.*,
-                (
-                    SELECT name FROM contacts 
-                    WHERE 
-                        -- Try exact match first
+                COALESCE(
+                    (SELECT name FROM contacts WHERE 
                         REPLACE(REPLACE(phone_number, '+', ''), ' ', '') = REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '')
-                        OR
-                        -- Then try matching last 10 digits
-                        SUBSTR('0000000000' || REPLACE(REPLACE(phone_number, '+', ''), ' ', ''), -10) = 
-                        SUBSTR('0000000000' || REPLACE(REPLACE(c.phone_number, '+', ''), ' ', ''), -10)
-                        OR
-                        -- Then try contains
-                        REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '') LIKE '%' || REPLACE(REPLACE(phone_number, '+', ''), ' ', '') || '%'
-                        OR
-                        REPLACE(REPLACE(phone_number, '+', ''), ' ', '') LIKE '%' || REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '') || '%'
+                        OR SUBSTR('0000000000' || REPLACE(REPLACE(phone_number, '+', ''), ' ', ''), -10) = 
+                            SUBSTR('0000000000' || REPLACE(REPLACE(c.phone_number, '+', ''), ' ', ''), -10)
+                        OR REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '') LIKE '%' || REPLACE(REPLACE(phone_number, '+', ''), ' ', '') || '%'
+                        OR REPLACE(REPLACE(phone_number, '+', ''), ' ', '') LIKE '%' || REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '') || '%'
                     LIMIT 1
+                ), 
+                CASE 
+                    WHEN c.type = 'incoming' THEN 'Incoming Call'
+                    WHEN c.type = 'outgoing' THEN 'Outgoing Call'
+                    ELSE 'Unknown'
+                END
                 ) as contact_name,
-                (
-                    SELECT company FROM contacts 
-                    WHERE 
+                COALESCE(
+                    (SELECT company FROM contacts WHERE 
                         REPLACE(REPLACE(phone_number, '+', ''), ' ', '') = REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '')
-                        OR
-                        SUBSTR('0000000000' || REPLACE(REPLACE(phone_number, '+', ''), ' ', ''), -10) = 
-                        SUBSTR('0000000000' || REPLACE(REPLACE(c.phone_number, '+', ''), ' ', ''), -10)
+                        OR SUBSTR('0000000000' || REPLACE(REPLACE(phone_number, '+', ''), ' ', ''), -10) = 
+                            SUBSTR('0000000000' || REPLACE(REPLACE(c.phone_number, '+', ''), ' ', ''), -10)
                     LIMIT 1
+                ), ''
                 ) as contact_company
             FROM calls c
             ORDER BY start_time DESC 
             LIMIT ? OFFSET ?
         `, [limit, offset]);
-
-        const total = await db.get('SELECT COUNT(*) as count FROM calls');
 
         res.json({
             success: true,
@@ -57,8 +56,8 @@ router.get('/logs', async (req, res) => {
             pagination: {
                 page,
                 limit,
-                total: total.count,
-                pages: Math.ceil(total.count / limit)
+                total: totalCount.count,
+                pages: Math.ceil(totalCount.count / limit)
             }
         });
     } catch (error) {
@@ -70,7 +69,40 @@ router.get('/logs', async (req, res) => {
     }
 });
 
-// Get recent calls
+// Get call stats
+router.get('/stats', async (req, res) => {
+    try {
+        const db = req.app.locals.db;
+        if (!db) {
+            throw new Error('Database not available');
+        }
+
+        const total = await db.get('SELECT COUNT(*) as count FROM calls');
+        const answered = await db.get("SELECT COUNT(*) as count FROM calls WHERE status = 'answered'");
+        const missed = await db.get("SELECT COUNT(*) as count FROM calls WHERE status = 'missed'");
+        const outgoing = await db.get("SELECT COUNT(*) as count FROM calls WHERE type = 'outgoing'");
+        const incoming = await db.get("SELECT COUNT(*) as count FROM calls WHERE type = 'incoming'");
+
+        res.json({
+            success: true,
+            data: {
+                total: total.count,
+                answered: answered.count,
+                missed: missed.count,
+                outgoing: outgoing.count,
+                incoming: incoming.count
+            }
+        });
+    } catch (error) {
+        logger.error('API call stats error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch call stats: ' + error.message
+        });
+    }
+});
+
+// Get recent calls for dashboard
 router.get('/recent', async (req, res) => {
     try {
         const db = req.app.locals.db;
@@ -78,19 +110,17 @@ router.get('/recent', async (req, res) => {
             throw new Error('Database not available');
         }
 
-        const limit = parseInt(req.query.limit) || 10;
+        const limit = parseInt(req.query.limit) || 5;
 
         const calls = await db.all(`
             SELECT 
                 c.*,
-                (
-                    SELECT name FROM contacts 
-                    WHERE 
+                COALESCE(
+                    (SELECT name FROM contacts WHERE 
                         REPLACE(REPLACE(phone_number, '+', ''), ' ', '') = REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '')
-                        OR
-                        SUBSTR('0000000000' || REPLACE(REPLACE(phone_number, '+', ''), ' ', ''), -10) = 
-                        SUBSTR('0000000000' || REPLACE(REPLACE(c.phone_number, '+', ''), ' ', ''), -10)
                     LIMIT 1
+                ), 
+                SUBSTR(c.phone_number, -10)
                 ) as contact_name
             FROM calls c
             ORDER BY start_time DESC 
@@ -123,21 +153,12 @@ router.get('/logs/:id', async (req, res) => {
         const call = await db.get(`
             SELECT 
                 c.*,
-                (
-                    SELECT name FROM contacts 
-                    WHERE 
-                        REPLACE(REPLACE(phone_number, '+', ''), ' ', '') = REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '')
-                        OR
-                        SUBSTR('0000000000' || REPLACE(REPLACE(phone_number, '+', ''), ' ', ''), -10) = 
-                        SUBSTR('0000000000' || REPLACE(REPLACE(c.phone_number, '+', ''), ' ', ''), -10)
-                    LIMIT 1
-                ) as contact_name,
-                (
-                    SELECT company FROM contacts 
-                    WHERE 
-                        REPLACE(REPLACE(phone_number, '+', ''), ' ', '') = REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '')
-                    LIMIT 1
-                ) as contact_company
+                (SELECT name FROM contacts WHERE 
+                    REPLACE(REPLACE(phone_number, '+', ''), ' ', '') = REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '')
+                LIMIT 1) as contact_name,
+                (SELECT company FROM contacts WHERE 
+                    REPLACE(REPLACE(phone_number, '+', ''), ' ', '') = REPLACE(REPLACE(c.phone_number, '+', ''), ' ', '')
+                LIMIT 1) as contact_company
             FROM calls c
             WHERE c.id = ?
         `, [id]);
@@ -186,7 +207,16 @@ router.post('/dial', [
         // Format number
         let formattedNumber = number;
         try {
-            formattedNumber = number.startsWith('+') ? number : '+88' + number.replace(/\D/g, '');
+            const digits = number.replace(/\D/g, '');
+            if (digits.length === 10) {
+                formattedNumber = '+88' + digits;
+            } else if (digits.length === 11 && digits.startsWith('0')) {
+                formattedNumber = '+88' + digits.substring(1);
+            } else if (digits.length === 13 && digits.startsWith('88')) {
+                formattedNumber = '+' + digits;
+            } else {
+                formattedNumber = '+' + digits;
+            }
         } catch (formatError) {
             logger.error('Number formatting error:', formatError);
             formattedNumber = number;
@@ -198,87 +228,34 @@ router.post('/dial', [
             VALUES (?, 'outgoing', 'dialing', CURRENT_TIMESTAMP)
         `, [formattedNumber]);
 
-        // Send actual AT command via MQTT if connected
+        // Send via MQTT if connected
         if (global.mqttService && global.mqttService.connected) {
             try {
-                const mqttResult = await global.mqttService.makeCall('esp32-s3-1', formattedNumber);
-                
-                if (mqttResult.success) {
-                    logger.info(`Call initiated to ${formattedNumber}`);
-                    
-                    try {
-                        if (req.io) {
-                            req.io.emit('call:started', {
-                                id: result.lastID,
-                                number: formattedNumber,
-                                status: 'dialing'
-                            });
-                        }
-                    } catch (socketError) {
-                        logger.error('Error emitting socket event:', socketError);
-                    }
-
-                    res.json({
-                        success: true,
-                        message: 'Call initiated',
-                        callId: result.lastID,
-                        number: formattedNumber
-                    });
-                } else {
-                    // Update database to failed
-                    await db.run(`
-                        UPDATE calls SET status = 'failed' WHERE id = ?
-                    `, [result.lastID]);
-                    
-                    res.status(500).json({
-                        success: false,
-                        message: mqttResult.error || 'Failed to initiate call'
-                    });
-                }
+                await global.mqttService.makeCall('esp32-s3-1', formattedNumber);
             } catch (mqttError) {
                 logger.error('MQTT error making call:', mqttError);
-                
-                await db.run(`
-                    UPDATE calls SET status = 'failed', notes = ? WHERE id = ?
-                `, [mqttError.message, result.lastID]);
-                
-                res.status(500).json({
-                    success: false,
-                    message: 'MQTT error: ' + mqttError.message
+            }
+        }
+
+        // Emit socket event
+        try {
+            if (req.io) {
+                req.io.emit('call:started', {
+                    id: result.lastID,
+                    number: formattedNumber,
+                    status: 'dialing'
                 });
             }
-        } else {
-            // Fallback for testing
-            logger.warn('MQTT not connected, simulating call');
-            
-            // Simulate call progress
-            setTimeout(async () => {
-                try {
-                    await db.run(`
-                        UPDATE calls 
-                        SET status = 'connected' 
-                        WHERE id = ?
-                    `, [result.lastID]);
-                    
-                    if (req.io) {
-                        req.io.emit('call:status', { 
-                            id: result.lastID,
-                            status: 'connected', 
-                            number: formattedNumber 
-                        });
-                    }
-                } catch (dbError) {
-                    logger.error('Error updating call status:', dbError);
-                }
-            }, 3000);
-            
-            res.json({
-                success: true,
-                message: 'Call initiated (simulated)',
-                callId: result.lastID,
-                number: formattedNumber
-            });
+        } catch (socketError) {
+            logger.error('Error emitting socket event:', socketError);
         }
+
+        res.json({
+            success: true,
+            message: 'Call initiated',
+            callId: result.lastID,
+            number: formattedNumber
+        });
     } catch (error) {
         logger.error('API dial call error:', error);
         res.status(500).json({
@@ -296,13 +273,12 @@ router.post('/end', async (req, res) => {
             throw new Error('Database not available');
         }
         
-        // Send AT command to end call via MQTT
+        // Send command via MQTT
         if (global.mqttService && global.mqttService.connected) {
             try {
                 await global.mqttService.publishCommand('esp32-s3-1', 'end-call', {});
             } catch (mqttError) {
                 logger.error('MQTT error ending call:', mqttError);
-                // Continue with database update even if MQTT fails
             }
         }
         
@@ -312,7 +288,7 @@ router.post('/end', async (req, res) => {
             SET status = 'ended', 
                 end_time = CURRENT_TIMESTAMP,
                 duration = CAST((julianday('now') - julianday(start_time)) * 86400 AS INTEGER)
-            WHERE status IN ('dialing', 'ringing', 'connected')
+            WHERE status IN ('dialing', 'ringing', 'connected', 'answered')
             ORDER BY start_time DESC
             LIMIT 1
         `);
@@ -322,9 +298,7 @@ router.post('/end', async (req, res) => {
             
             try {
                 if (req.io) {
-                    req.io.emit('call:ended', {
-                        status: 'ended'
-                    });
+                    req.io.emit('call:ended', { status: 'ended' });
                 }
             } catch (socketError) {
                 logger.error('Error emitting socket event:', socketError);
@@ -344,112 +318,6 @@ router.post('/end', async (req, res) => {
     }
 });
 
-// Answer incoming call
-router.post('/answer', async (req, res) => {
-    try {
-        const db = req.app.locals.db;
-        if (!db) {
-            throw new Error('Database not available');
-        }
-        
-        // Send AT command to answer call via MQTT
-        if (global.mqttService && global.mqttService.connected) {
-            try {
-                await global.mqttService.publishCommand('esp32-s3-1', 'answer-call', {});
-            } catch (mqttError) {
-                logger.error('MQTT error answering call:', mqttError);
-            }
-        }
-        
-        // Update the most recent ringing call
-        const result = await db.run(`
-            UPDATE calls 
-            SET status = 'answered', start_time = CURRENT_TIMESTAMP 
-            WHERE status = 'ringing'
-            ORDER BY start_time DESC
-            LIMIT 1
-        `);
-
-        if (result.changes > 0) {
-            logger.info('Call answered');
-            
-            try {
-                if (req.io) {
-                    req.io.emit('call:status', { 
-                        status: 'answered' 
-                    });
-                }
-            } catch (socketError) {
-                logger.error('Error emitting socket event:', socketError);
-            }
-        }
-
-        res.json({
-            success: true,
-            message: 'Call answered'
-        });
-    } catch (error) {
-        logger.error('API answer call error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to answer call: ' + error.message
-        });
-    }
-});
-
-// Reject incoming call
-router.post('/reject', async (req, res) => {
-    try {
-        const db = req.app.locals.db;
-        if (!db) {
-            throw new Error('Database not available');
-        }
-        
-        // Send AT command to reject call via MQTT
-        if (global.mqttService && global.mqttService.connected) {
-            try {
-                await global.mqttService.publishCommand('esp32-s3-1', 'reject-call', {});
-            } catch (mqttError) {
-                logger.error('MQTT error rejecting call:', mqttError);
-            }
-        }
-        
-        // Update the most recent ringing call
-        const result = await db.run(`
-            UPDATE calls 
-            SET status = 'rejected', end_time = CURRENT_TIMESTAMP 
-            WHERE status = 'ringing'
-            ORDER BY start_time DESC
-            LIMIT 1
-        `);
-
-        if (result.changes > 0) {
-            logger.info('Call rejected');
-            
-            try {
-                if (req.io) {
-                    req.io.emit('call:ended', {
-                        status: 'rejected'
-                    });
-                }
-            } catch (socketError) {
-                logger.error('Error emitting socket event:', socketError);
-            }
-        }
-
-        res.json({
-            success: true,
-            message: 'Call rejected'
-        });
-    } catch (error) {
-        logger.error('API reject call error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to reject call: ' + error.message
-        });
-    }
-});
-
 // Get current call status
 router.get('/status', async (req, res) => {
     try {
@@ -458,16 +326,16 @@ router.get('/status', async (req, res) => {
             throw new Error('Database not available');
         }
         
-        // Check if there's an active call in database
+        // Check if there's an active call
         const activeCall = await db.get(`
             SELECT * FROM calls 
-            WHERE status IN ('dialing', 'ringing', 'connected')
+            WHERE status IN ('dialing', 'ringing', 'connected', 'answered')
             ORDER BY start_time DESC
             LIMIT 1
         `);
 
         if (activeCall) {
-            const duration = activeCall.status === 'connected' ? 
+            const duration = activeCall.status === 'connected' || activeCall.status === 'answered' ? 
                 Math.floor((new Date() - new Date(activeCall.start_time)) / 1000) : 0;
             
             res.json({
@@ -484,9 +352,7 @@ router.get('/status', async (req, res) => {
         } else {
             res.json({
                 success: true,
-                data: {
-                    active: false
-                }
+                data: { active: false }
             });
         }
     } catch (error) {
@@ -586,7 +452,7 @@ router.post('/hold', [
     try {
         const { hold } = req.body;
         
-        // Send AT command via MQTT
+        // Send command via MQTT
         if (global.mqttService && global.mqttService.connected) {
             try {
                 await global.mqttService.publishCommand('esp32-s3-1', 'hold-call', { hold });
@@ -608,9 +474,7 @@ router.post('/hold', [
         
         try {
             if (req.io) {
-                req.io.emit('call:hold', { 
-                    onHold: hold 
-                });
+                req.io.emit('call:hold', { onHold: hold });
             }
         } catch (socketError) {
             logger.error('Error emitting socket event:', socketError);
@@ -629,22 +493,22 @@ router.post('/hold', [
     }
 });
 
-// Transfer call
-router.post('/transfer', [
-    body('number').notEmpty()
+// Mute call
+router.post('/mute', [
+    body('mute').isBoolean()
 ], async (req, res) => {
     try {
-        const { number } = req.body;
+        const { mute } = req.body;
         
-        // Send AT command via MQTT
+        // Send command via MQTT
         if (global.mqttService && global.mqttService.connected) {
             try {
-                await global.mqttService.publishCommand('esp32-s3-1', 'transfer-call', { number });
+                await global.mqttService.publishCommand('esp32-s3-1', 'mute-call', { mute });
             } catch (mqttError) {
-                logger.error('MQTT error transferring call:', mqttError);
+                logger.error('MQTT error toggling mute:', mqttError);
                 return res.status(500).json({
                     success: false,
-                    message: 'Failed to send transfer command: ' + mqttError.message
+                    message: 'Failed to send mute command: ' + mqttError.message
                 });
             }
         } else {
@@ -654,27 +518,15 @@ router.post('/transfer', [
             });
         }
         
-        logger.info(`Transferring call to ${number}`);
-        
-        try {
-            if (req.io) {
-                req.io.emit('call:transfer', { 
-                    to: number 
-                });
-            }
-        } catch (socketError) {
-            logger.error('Error emitting socket event:', socketError);
-        }
-        
         res.json({
             success: true,
-            message: 'Call transfer initiated'
+            message: mute ? 'Call muted' : 'Call unmuted'
         });
     } catch (error) {
-        logger.error('API transfer call error:', error);
+        logger.error('API mute call error:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to transfer call: ' + error.message
+            message: 'Failed to toggle mute: ' + error.message
         });
     }
 });

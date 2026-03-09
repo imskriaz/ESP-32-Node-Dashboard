@@ -24,23 +24,13 @@
         </button>
     </li>
     <li class="nav-item" role="presentation">
-        <button class="nav-link" id="modem-tab" data-bs-toggle="tab" data-bs-target="#modem" type="button">
-            <i class="bi bi-broadcast me-2"></i>Modem
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="webcam-tab" data-bs-toggle="tab" data-bs-target="#webcam" type="button">
-            <i class="bi bi-camera me-2"></i>Webcam
+        <button class="nav-link" id="system-tab" data-bs-toggle="tab" data-bs-target="#system" type="button">
+            <i class="bi bi-cpu me-2"></i>System
         </button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="firmware-tab" data-bs-toggle="tab" data-bs-target="#firmware" type="button">
             <i class="bi bi-arrow-up-circle me-2"></i>Firmware
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="system-tab" data-bs-toggle="tab" data-bs-target="#system" type="button">
-            <i class="bi bi-cpu me-2"></i>System
         </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -81,7 +71,7 @@
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Port</label>
                             <input type="number" class="form-control" id="mqttPort" placeholder="1883" min="1" max="65535">
-                            <small class="text-muted">Default: 1883 (non-TLS) or 8883 (TLS)</small>
+                            <small class="text-muted">Default: 1883</small>
                         </div>
                     </div>
 
@@ -107,25 +97,6 @@
                         <small class="text-muted">Unique identifier for this client</small>
                     </div>
 
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">Topics</label>
-                        <div class="bg-light p-3 rounded">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <small class="d-block"><strong>Command:</strong> device/+/command/#</small>
-                                    <small class="d-block"><strong>Status:</strong> device/+/status</small>
-                                    <small class="d-block"><strong>SMS:</strong> device/+/sms/#</small>
-                                    <small class="d-block"><strong>OTA:</strong> device/+/ota/#</small>
-                                </div>
-                                <div class="col-md-6">
-                                    <small class="d-block"><strong>Call:</strong> device/+/call/#</small>
-                                    <small class="d-block"><strong>USSD:</strong> device/+/ussd/#</small>
-                                    <small class="d-block"><strong>Webcam:</strong> device/+/webcam/#</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-primary" onclick="testMQTTConnection()">
                             <i class="bi bi-plug me-2"></i>Test Connection
@@ -134,370 +105,6 @@
                             <i class="bi bi-check-lg me-2"></i>Save MQTT Settings
                         </button>
                     </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- ==================== MODEM SETTINGS ==================== -->
-    <div class="tab-pane fade" id="modem" role="tabpanel">
-        <div class="card">
-            <div class="card-header bg-white py-3">
-                <h5 class="mb-0">
-                    <i class="bi bi-broadcast me-2"></i>Modem / Cellular Settings
-                </h5>
-            </div>
-            <div class="card-body">
-                <form id="modemSettingsForm">
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">APN</label>
-                            <input type="text" class="form-control" id="modemApn" placeholder="internet">
-                            <small class="text-muted">Access Point Name (e.g., internet, gpinternet)</small>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Authentication</label>
-                            <select class="form-select" id="modemAuth">
-                                <option value="none">None</option>
-                                <option value="pap">PAP</option>
-                                <option value="chap">CHAP</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">APN Username</label>
-                            <input type="text" class="form-control" id="modemApnUser" placeholder="(optional)">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">APN Password</label>
-                            <input type="password" class="form-control" id="modemApnPass" placeholder="(optional)">
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Network Mode</label>
-                            <select class="form-select" id="modemNetworkMode">
-                                <option value="auto">Auto</option>
-                                <option value="2g">2G Only</option>
-                                <option value="3g">3G Only</option>
-                                <option value="4g">4G Only</option>
-                                <option value="lte">LTE Only</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Preferred Network</label>
-                            <select class="form-select" id="modemPreferredNetwork">
-                                <option value="AUTO">Auto</option>
-                                <option value="ROBI">Robi</option>
-                                <option value="GP">Grameenphone</option>
-                                <option value="BL">Banglalink</option>
-                                <option value="TELETALK">Teletalk</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Band Selection</label>
-                            <select class="form-select" id="modemBand">
-                                <option value="ALL">All Bands</option>
-                                <option value="B1">Band 1 (2100MHz)</option>
-                                <option value="B3">Band 3 (1800MHz)</option>
-                                <option value="B5">Band 5 (850MHz)</option>
-                                <option value="B8">Band 8 (900MHz)</option>
-                                <option value="B40">Band 40 (2300MHz)</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-check form-switch mt-4">
-                                <input class="form-check-input" type="checkbox" id="modemRoaming">
-                                <label class="form-check-label fw-bold" for="modemRoaming">Allow Roaming</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="modemAutoConnect" checked>
-                                <label class="form-check-label fw-bold" for="modemAutoConnect">Auto Connect</label>
-                            </div>
-                            <small class="text-muted d-block">Automatically connect to cellular network on startup</small>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">SIM PIN (optional)</label>
-                            <input type="password" class="form-control" id="modemPinCode" placeholder="****" maxlength="4">
-                        </div>
-                    </div>
-
-                    <hr>
-
-                    <h6 class="fw-bold mb-3">Data Usage Settings</h6>
-                    <div class="row mb-3">
-                        <div class="col-md-4">
-                            <label class="form-label">Data Limit (MB)</label>
-                            <input type="number" class="form-control" id="dataLimit" value="0" min="0">
-                            <small class="text-muted">0 = Unlimited</small>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Warning at (%)</label>
-                            <input type="number" class="form-control" id="dataWarning" value="80" min="1" max="100">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Reset Day</label>
-                            <input type="number" class="form-control" id="dataResetDay" value="1" min="1" max="31">
-                        </div>
-                    </div>
-
-                    <hr>
-
-                    <h6 class="fw-bold mb-3">Network Scanning</h6>
-                    <div class="mb-3">
-                        <button type="button" class="btn btn-outline-primary" onclick="scanNetworks()">
-                            <i class="bi bi-search me-2"></i>Scan Available Networks
-                        </button>
-                    </div>
-                    <div id="networkScanResults" class="mb-3" style="display: none;">
-                        <label class="form-label fw-bold">Available Networks</label>
-                        <div class="list-group" id="networksList"></div>
-                    </div>
-
-                    <button type="button" class="btn btn-success" onclick="saveModemSettings()">
-                        <i class="bi bi-check-lg me-2"></i>Save Modem Settings
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- ==================== WEBCAM SETTINGS ==================== -->
-    <div class="tab-pane fade" id="webcam" role="tabpanel">
-        <div class="card">
-            <div class="card-header bg-white py-3">
-                <h5 class="mb-0">
-                    <i class="bi bi-camera me-2"></i>Webcam Settings
-                </h5>
-            </div>
-            <div class="card-body">
-                <form id="webcamSettingsForm">
-                    <div class="mb-3 form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="webcamEnabled">
-                        <label class="form-check-label fw-bold" for="webcamEnabled">Enable Webcam</label>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Resolution</label>
-                            <select class="form-select" id="webcamResolution">
-                                <option value="1600x1200">1600x1200 (UXGA)</option>
-                                <option value="1280x1024">1280x1024 (SXGA)</option>
-                                <option value="1024x768">1024x768 (XGA)</option>
-                                <option value="800x600">800x600 (SVGA)</option>
-                                <option value="640x480" selected>640x480 (VGA)</option>
-                                <option value="352x288">352x288 (CIF)</option>
-                                <option value="320x240">320x240 (QVGA)</option>
-                                <option value="176x144">176x144 (QCIF)</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Frame Rate (FPS)</label>
-                            <input type="range" class="form-range" id="webcamFps" min="1" max="60" value="15">
-                            <div class="d-flex justify-content-between">
-                                <span>1 fps</span>
-                                <span id="webcamFpsValue">15 fps</span>
-                                <span>60 fps</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">JPEG Quality</label>
-                            <input type="range" class="form-range" id="webcamQuality" min="10" max="100" value="80">
-                            <div class="d-flex justify-content-between">
-                                <span>10%</span>
-                                <span id="webcamQualityValue">80%</span>
-                                <span>100%</span>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Brightness</label>
-                            <input type="range" class="form-range" id="webcamBrightness" min="-2" max="2" value="0" step="1">
-                            <div class="d-flex justify-content-between">
-                                <span>-2</span>
-                                <span id="webcamBrightnessValue">0</span>
-                                <span>+2</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Contrast</label>
-                            <input type="range" class="form-range" id="webcamContrast" min="-2" max="2" value="0" step="1">
-                            <div class="d-flex justify-content-between">
-                                <span>-2</span>
-                                <span id="webcamContrastValue">0</span>
-                                <span>+2</span>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Saturation</label>
-                            <input type="range" class="form-range" id="webcamSaturation" min="-2" max="2" value="0" step="1">
-                            <div class="d-flex justify-content-between">
-                                <span>-2</span>
-                                <span id="webcamSaturationValue">0</span>
-                                <span>+2</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Sharpness</label>
-                            <input type="range" class="form-range" id="webcamSharpness" min="-2" max="2" value="0" step="1">
-                            <div class="d-flex justify-content-between">
-                                <span>-2</span>
-                                <span id="webcamSharpnessValue">0</span>
-                                <span>+2</span>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-check">
-                                <input type="checkbox" class="form-check-input" id="webcamFlipH">
-                                <label class="form-check-label" for="webcamFlipH">Flip Horizontal</label>
-                            </div>
-                            <div class="form-check">
-                                <input type="checkbox" class="form-check-input" id="webcamFlipV">
-                                <label class="form-check-label" for="webcamFlipV">Flip Vertical</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <hr>
-
-                    <h6 class="fw-bold mb-3">Motion Detection</h6>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="webcamMotionEnable">
-                                <label class="form-check-label fw-bold" for="webcamMotionEnable">Enable Motion Detection</label>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Sensitivity</label>
-                            <input type="range" class="form-range" id="webcamMotionSensitivity" min="1" max="100" value="50">
-                            <div class="d-flex justify-content-between">
-                                <span>Low</span>
-                                <span id="webcamSensitivityValue">50%</span>
-                                <span>High</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <button type="button" class="btn btn-success" onclick="saveWebcamSettings()">
-                        <i class="bi bi-check-lg me-2"></i>Save Webcam Settings
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- ==================== FIRMWARE SETTINGS ==================== -->
-    <div class="tab-pane fade" id="firmware" role="tabpanel">
-        <div class="card">
-            <div class="card-header bg-white py-3">
-                <h5 class="mb-0">
-                    <i class="bi bi-arrow-up-circle me-2"></i>Firmware Update
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <h6>Current Version</h6>
-                                <h3 id="currentVersion">1.0.0</h3>
-                                <small class="text-muted" id="lastCheck">Last check: Never</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <h6>Available Version</h6>
-                                <h3 id="availableVersion">---</h3>
-                                <button class="btn btn-primary btn-sm mt-2" onclick="checkForUpdates()">
-                                    <i class="bi bi-search"></i> Check for Updates
-                                </button>
-                                <button class="btn btn-success btn-sm mt-2" id="updateBtn" style="display: none;" onclick="performUpdate()">
-                                    <i class="bi bi-arrow-up-circle"></i> Update Now
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <hr>
-
-                <form id="firmwareSettingsForm">
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="autoUpdate">
-                                <label class="form-check-label fw-bold" for="autoUpdate">Auto Update</label>
-                            </div>
-                            <small class="text-muted">Automatically install stable updates</small>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Update Channel</label>
-                            <select class="form-select" id="updateChannel">
-                                <option value="stable">Stable (Recommended)</option>
-                                <option value="beta">Beta</option>
-                                <option value="dev">Development</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Update URL</label>
-                        <input type="url" class="form-control" id="updateUrl" value="https://firmware.atebd.com/esp32-s3">
-                    </div>
-
-                    <h6 class="fw-bold mb-3">Device Information</h6>
-                    <div class="row">
-                        <div class="col-md-4 mb-2">
-                            <small class="text-muted d-block">Model</small>
-                            <strong id="deviceModel">ESP32-S3 A7670E</strong>
-                        </div>
-                        <div class="col-md-4 mb-2">
-                            <small class="text-muted d-block">Device ID</small>
-                            <strong id="deviceId">esp32-s3-1</strong>
-                        </div>
-                        <div class="col-md-4 mb-2">
-                            <small class="text-muted d-block">MCU</small>
-                            <strong id="mcu">ESP32-S3</strong>
-                        </div>
-                        <div class="col-md-4 mb-2">
-                            <small class="text-muted d-block">Modem</small>
-                            <strong id="modemType">A7670E</strong>
-                        </div>
-                        <div class="col-md-4 mb-2">
-                            <small class="text-muted d-block">Flash Size</small>
-                            <strong id="flashSize">16MB</strong>
-                        </div>
-                        <div class="col-md-4 mb-2">
-                            <small class="text-muted d-block">PSRAM</small>
-                            <strong id="psram">8MB</strong>
-                        </div>
-                    </div>
-
-                    <button type="button" class="btn btn-success mt-3" onclick="saveFirmwareSettings()">
-                        <i class="bi bi-check-lg me-2"></i>Save Firmware Settings
-                    </button>
                 </form>
             </div>
         </div>
@@ -611,6 +218,68 @@
         </div>
     </div>
 
+    <!-- ==================== FIRMWARE SETTINGS ==================== -->
+    <div class="tab-pane fade" id="firmware" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-arrow-up-circle me-2"></i>Firmware Update
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6>Current Version</h6>
+                                <h3 id="currentVersion">1.0.0</h3>
+                                <small class="text-muted" id="lastCheck">Last check: Never</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6>Available Version</h6>
+                                <h3 id="availableVersion">---</h3>
+                                <button class="btn btn-primary btn-sm mt-2" onclick="checkForUpdates()">
+                                    <i class="bi bi-search"></i> Check for Updates
+                                </button>
+                                <button class="btn btn-success btn-sm mt-2" id="updateBtn" style="display: none;" onclick="performUpdate()">
+                                    <i class="bi bi-arrow-up-circle"></i> Update Now
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <form id="firmwareSettingsForm">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="autoUpdate">
+                                <label class="form-check-label fw-bold" for="autoUpdate">Auto Update</label>
+                            </div>
+                            <small class="text-muted">Automatically install stable updates</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Update Channel</label>
+                            <select class="form-select" id="updateChannel">
+                                <option value="stable">Stable (Recommended)</option>
+                                <option value="beta">Beta</option>
+                                <option value="dev">Development</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-success mt-3" onclick="saveFirmwareSettings()">
+                        <i class="bi bi-check-lg me-2"></i>Save Firmware Settings
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- ==================== NOTIFICATIONS SETTINGS ==================== -->
     <div class="tab-pane fade" id="notifications" role="tabpanel">
         <div class="card">
@@ -699,57 +368,6 @@
                             <button type="button" class="btn btn-outline-primary" onclick="testTelegram()">
                                 <i class="bi bi-send me-2"></i>Test Telegram
                             </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Pushover Notifications -->
-                <h6 class="fw-bold mb-3">Pushover Notifications</h6>
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="notifyPushoverEnable">
-                            <label class="form-check-label fw-bold" for="notifyPushoverEnable">Enable Pushover</label>
-                        </div>
-
-                        <div id="pushoverSettings" style="display: none;">
-                            <div class="mb-3">
-                                <label class="form-label">App Token</label>
-                                <input type="text" class="form-control" id="notifyAppToken" placeholder="abcdefghijklmnopqrstuvwxyz12">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">User Key</label>
-                                <input type="text" class="form-control" id="notifyUserKey" placeholder="abcdefghijklmnopqrstuvwxyz12">
-                            </div>
-                            <button type="button" class="btn btn-outline-primary" onclick="testPushover()">
-                                <i class="bi bi-send me-2"></i>Test Pushover
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Webhook Notifications -->
-                <h6 class="fw-bold mb-3">Webhook</h6>
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="notifyWebhookEnable">
-                            <label class="form-check-label fw-bold" for="notifyWebhookEnable">Enable Webhook</label>
-                        </div>
-
-                        <div id="webhookSettings" style="display: none;">
-                            <div class="mb-3">
-                                <label class="form-label">Webhook URL</label>
-                                <input type="url" class="form-control" id="webhookUrl" placeholder="https://example.com/webhook">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Method</label>
-                                <select class="form-select" id="webhookMethod">
-                                    <option value="POST">POST</option>
-                                    <option value="GET">GET</option>
-                                    <option value="PUT">PUT</option>
-                                </select>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -1012,7 +630,7 @@
     width: 100%;
 }
 
-#emailSettings, #telegramSettings, #pushoverSettings, #webhookSettings {
+#emailSettings, #telegramSettings {
     padding-top: 1rem;
     border-top: 1px solid #dee2e6;
     margin-top: 1rem;

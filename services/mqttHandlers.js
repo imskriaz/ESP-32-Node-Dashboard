@@ -121,42 +121,24 @@ class MQTTHandlers {
                 network: data.mobile?.networkType
             });
         });
-
-        // SMS handlers
+        
         this.setupSMSHandlers();
-
-        // Call handlers
         this.setupCallHandlers();
-
-        // USSD handlers
         this.setupUSSDHandlers();
-
-        // Webcam handlers
-        this.setupWebcamHandlers();
-
-        // WiFi handlers
+        this.setupIntercomHandlers();
         this.setupWiFiHandlers();
-
-        // Location handlers
         this.setupLocationHandlers();
-
-        // Command response handlers
         this.setupCommandHandlers();
-
-        // Storage handlers
         this.setupStorageHandlers();
-
         this.setupGPSHandlers();
-
         this.setupGPIOHandlers();
-
         this.setupTestHandlers();
     }
 
     setupTestHandlers() {
         this.mqttService.on('test:result', async (deviceId, data) => {
             logger.info(`🧪 Test result from ${deviceId}: ${data.testId} = ${data.result}`);
-            
+
             // Save to database
             const db = this.app.locals.db;
             if (db && data.runId) {
@@ -176,7 +158,7 @@ class MQTTHandlers {
                     data.timestamp || new Date().toISOString()
                 ]);
             }
-            
+
             // Emit via Socket.IO
             this.io.emit('test:result', { deviceId, ...data });
         });
@@ -331,46 +313,23 @@ class MQTTHandlers {
         });
     }
 
-    setupWebcamHandlers() {
-        this.mqttService.on('webcam:image', async (deviceId, data) => {
-            logger.info(`📸 Received image from webcam`);
+    setupIntercomHandlers() {
+        this.mqttService.on('intercom-signal', (deviceId, data) => {
+            logger.info(`📹 Intercom signal from ${deviceId}: ${data.type}`);
 
-            try {
-                // Save image to file
-                const uploadDir = path.join(__dirname, '../public/uploads/webcam');
-                if (!fs.existsSync(uploadDir)) {
-                    fs.mkdirSync(uploadDir, { recursive: true });
-                }
+            // Import intercom handler
+            const intercomHandler = require('../routes/intercom');
+            if (intercomHandler && intercomHandler.handleMqttMessage) {
+                intercomHandler.handleMqttMessage(deviceId, 'intercom-signal', data);
+            }
+        });
 
-                const filename = `capture-${Date.now()}.jpg`;
-                const filepath = path.join(uploadDir, filename);
+        this.mqttService.on('intercom-call-status', (deviceId, data) => {
+            logger.info(`📞 Intercom call status from ${deviceId}: ${data.inCall ? 'Active' : 'Ended'}`);
 
-                // Decode base64 image
-                const imageBuffer = Buffer.from(data.image, 'base64');
-                fs.writeFileSync(filepath, imageBuffer);
-
-                const imageUrl = `/uploads/webcam/${filename}`;
-
-                // Save to database
-                const db = this.app.locals.db;
-                if (db) {
-                    await db.run(`
-                        INSERT INTO webcam_captures (filename, path, size, timestamp, type) 
-                        VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'mqtt')
-                    `, [filename, imageUrl, imageBuffer.length]);
-                }
-
-                this.io.emit('webcam:capture', {
-                    deviceId,
-                    path: imageUrl,
-                    timestamp: new Date().toISOString(),
-                    size: imageBuffer.length
-                });
-
-                logger.info(`✅ Image saved: ${filename} (${imageBuffer.length} bytes)`);
-
-            } catch (error) {
-                logger.error('❌ Error saving webcam image:', error);
+            const intercomHandler = require('../routes/intercom');
+            if (intercomHandler && intercomHandler.handleMqttMessage) {
+                intercomHandler.handleMqttMessage(deviceId, 'intercom-call-status', data);
             }
         });
     }

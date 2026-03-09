@@ -1,4 +1,4 @@
-// Calls page specific functionality with contacts integration
+// Calls page specific functionality
 (function () {
     'use strict';
 
@@ -7,13 +7,50 @@
     // State
     let currentPage = 1;
     let totalPages = 1;
-    let totalCalls = 0;
-    let callStatusInterval = null;
     let contacts = [];
     let filteredContacts = [];
-    let isDeviceConnected = <%= isDeviceConnected %>; // Pass from server
+    let isDeviceConnected = false;
+    let callStatusInterval = null;
+    let companies = [];
 
-    // Wait for DOM to be ready
+    // DOM Elements
+    const elements = {
+        totalCalls: document.getElementById('totalCalls'),
+        outgoingCalls: document.getElementById('outgoingCalls'),
+        incomingCalls: document.getElementById('incomingCalls'),
+        missedCalls: document.getElementById('missedCalls'),
+        callsTableBody: document.getElementById('callsTableBody'),
+        callsMobileList: document.getElementById('callsMobileList'),
+        callsPagination: document.getElementById('callsPagination'),
+        searchCalls: document.getElementById('searchCalls'),
+        filterCallType: document.getElementById('filterCallType'),
+        sortCalls: document.getElementById('sortCalls'),
+        contactsList: document.getElementById('contactsList'),
+        modalContactsList: document.getElementById('modalContactsList'),
+        contactSearch: document.getElementById('contactSearch'),
+        modalContactSearch: document.getElementById('modalContactSearch'),
+        modalContactCompany: document.getElementById('modalContactCompany'),
+        contactCompanyFilters: document.getElementById('contactCompanyFilters'),
+        speedDialGrid: document.getElementById('speedDialGrid'),
+        favoritesList: document.getElementById('favoritesList'),
+        quickContacts: document.getElementById('quickContacts'),
+        contactCount: document.getElementById('contactCount'),
+        totalContacts: document.getElementById('totalContacts'),
+        favoriteContacts: document.getElementById('favoriteContacts'),
+        dialerNumber: document.getElementById('dialerNumber'),
+        numberHint: document.getElementById('numberHint'),
+        contactName: document.getElementById('contactName'),
+        clearNumber: document.getElementById('clearNumber'),
+        makeCall: document.getElementById('makeCall'),
+        activeCallBanner: document.getElementById('activeCallBanner'),
+        activeCallStatus: document.getElementById('activeCallStatus'),
+        activeCallNumber: document.getElementById('activeCallNumber'),
+        activeCallDuration: document.getElementById('activeCallDuration'),
+        deviceOfflineWarning: document.getElementById('deviceOfflineWarning'),
+        dialerOfflineWarning: document.getElementById('dialerOfflineWarning')
+    };
+
+    // Initialize
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
@@ -22,17 +59,17 @@
 
     function init() {
         console.log('Initializing Calls page...');
-        console.log('Device connected:', isDeviceConnected);
+
+        // Check device connection
+        checkDeviceConnection();
 
         // Load initial data
         loadCallLogs();
+        loadCallStats();
         loadContacts();
-        loadStats();
         
-        // Only start call status check if device is connected
-        if (isDeviceConnected) {
-            startCallStatusCheck();
-        }
+        // Start call status check
+        startCallStatusCheck();
 
         // Attach event listeners
         attachDialerListeners();
@@ -40,16 +77,38 @@
         attachModalListeners();
     }
 
-    // ==================== CONNECTION CHECK ====================
+    // ==================== DEVICE CONNECTION ====================
     function checkDeviceConnection() {
-        if (!isDeviceConnected) {
-            showToast('Device is offline. Call functions are disabled.', 'warning');
-            return false;
-        }
-        return true;
+        fetch('/api/status')
+            .then(response => response.json())
+            .then(data => {
+                isDeviceConnected = data.success && data.data.online;
+                
+                if (elements.deviceOfflineWarning) {
+                    if (!isDeviceConnected) {
+                        elements.deviceOfflineWarning.classList.remove('d-none');
+                        elements.deviceOfflineWarning.classList.add('d-flex');
+                    } else {
+                        elements.deviceOfflineWarning.classList.add('d-none');
+                        elements.deviceOfflineWarning.classList.remove('d-flex');
+                    }
+                }
+                
+                if (elements.dialerOfflineWarning) {
+                    elements.dialerOfflineWarning.classList.toggle('d-none', isDeviceConnected);
+                }
+                
+                if (elements.makeCall) {
+                    elements.makeCall.disabled = !isDeviceConnected;
+                }
+            })
+            .catch(error => {
+                console.error('Error checking device connection:', error);
+                isDeviceConnected = false;
+            });
     }
 
-    // Load call logs
+    // ==================== CALL LOGS ====================
     function loadCallLogs(page = 1) {
         currentPage = page;
 
@@ -59,7 +118,6 @@
                 if (data.success) {
                     displayCallLogs(data.data);
                     updatePagination(data.pagination);
-                    updateStats(data.data);
                 }
             })
             .catch(error => {
@@ -68,12 +126,8 @@
             });
     }
 
-    // Display call logs
     function displayCallLogs(calls) {
-        const tableBody = document.getElementById('callsTableBody');
-        const mobileList = document.getElementById('callsMobileList');
-
-        if (!tableBody || !mobileList) return;
+        if (!elements.callsTableBody || !elements.callsMobileList) return;
 
         if (!calls || calls.length === 0) {
             const emptyHtml = `
@@ -81,15 +135,14 @@
                     <td colspan="7" class="text-center py-5">
                         <i class="bi bi-telephone-x fs-1 text-muted d-block mb-3"></i>
                         <p class="text-muted mb-0">No call logs found</p>
-                        <button class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#dialerModal" 
-                                ${!isDeviceConnected ? 'disabled' : ''}>
+                        <button class="btn btn-primary mt-3" onclick="openDialerModal()">
                             <i class="bi bi-telephone-plus me-2"></i>Make a Call
                         </button>
                     </td>
                 </tr>
             `;
-            tableBody.innerHTML = emptyHtml;
-            mobileList.innerHTML = emptyHtml;
+            elements.callsTableBody.innerHTML = emptyHtml;
+            elements.callsMobileList.innerHTML = emptyHtml;
             return;
         }
 
@@ -100,8 +153,7 @@
         let mobileHtml = '';
 
         calls.forEach(call => {
-            const contact = findContactByNumber(call.phone_number);
-            const contactName = contact ? contact.name : 'Unknown';
+            const contactName = call.contact_name || formatDisplayNumber(call.phone_number);
             const icon = getCallIcon(call.type, call.status);
             const statusClass = getStatusClass(call.status);
             const statusBadge = getStatusBadge(call.status);
@@ -111,18 +163,13 @@
             tableHtml += `
                 <tr data-call-id="${call.id}">
                     <td>
-                        <i class="bi ${icon} fs-5 ${statusClass}"></i>
+                        <div class="avatar-circle ${statusClass}">
+                            <i class="bi ${icon}"></i>
+                        </div>
                     </td>
                     <td>
-                        <div class="d-flex align-items-center">
-                            <div class="bg-light rounded-circle p-2 me-2">
-                                <i class="bi bi-person-circle"></i>
-                            </div>
-                            <div>
-                                <div class="fw-bold">${contactName}</div>
-                                ${contact && contact.company ? `<small class="text-muted">${contact.company}</small>` : ''}
-                            </div>
-                        </div>
+                        <div class="fw-bold">${escapeHtml(contactName)}</div>
+                        ${call.contact_company ? `<small class="text-muted">${escapeHtml(call.contact_company)}</small>` : ''}
                     </td>
                     <td>${call.phone_number}</td>
                     <td>${formatDate(call.start_time)}</td>
@@ -154,17 +201,18 @@
                     <div class="card-body">
                         <div class="d-flex align-items-start gap-3">
                             <div class="flex-shrink-0">
-                                <div class="bg-light rounded-circle p-2">
-                                    <i class="bi ${icon} fs-4 ${statusClass}"></i>
+                                <div class="avatar-circle ${statusClass}">
+                                    <i class="bi ${icon}"></i>
                                 </div>
                             </div>
                             <div class="flex-grow-1">
                                 <div class="d-flex justify-content-between mb-1">
-                                    <h6 class="mb-0">${contactName}</h6>
+                                    <h6 class="mb-0">${escapeHtml(contactName)}</h6>
                                     <small class="text-muted">${formatDate(call.start_time)}</small>
                                 </div>
                                 <p class="mb-1 small">${call.phone_number}</p>
-                                <div class="d-flex justify-content-between align-items-center">
+                                ${call.contact_company ? `<small class="text-muted d-block mb-1">${escapeHtml(call.contact_company)}</small>` : ''}
+                                <div class="d-flex justify-content-between align-items-center mt-2">
                                     <div>
                                         <span class="badge ${statusBadge} me-2">${statusText}</span>
                                         <small class="text-muted">${formatDuration(call.duration)}</small>
@@ -186,11 +234,26 @@
             `;
         });
 
-        tableBody.innerHTML = tableHtml;
-        mobileList.innerHTML = mobileHtml;
+        elements.callsTableBody.innerHTML = tableHtml;
+        elements.callsMobileList.innerHTML = mobileHtml;
     }
 
-    // Load contacts
+    // ==================== CALL STATS ====================
+    function loadCallStats() {
+        fetch('/api/calls/stats')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (elements.totalCalls) elements.totalCalls.textContent = data.data.total;
+                    if (elements.outgoingCalls) elements.outgoingCalls.textContent = data.data.outgoing;
+                    if (elements.incomingCalls) elements.incomingCalls.textContent = data.data.incoming;
+                    if (elements.missedCalls) elements.missedCalls.textContent = data.data.missed;
+                }
+            })
+            .catch(console.error);
+    }
+
+    // ==================== CONTACTS ====================
     function loadContacts() {
         fetch('/api/contacts?limit=100')
             .then(response => response.json())
@@ -198,26 +261,29 @@
                 if (data.success) {
                     contacts = data.data;
                     filteredContacts = contacts;
+                    
+                    // Extract unique companies
+                    companies = [...new Set(contacts.filter(c => c.company).map(c => c.company))];
+                    
                     displayContacts();
                     displaySpeedDial();
                     displayFavorites();
                     displayQuickContacts();
                     updateContactCount();
+                    updateContactFilters();
                 }
             })
             .catch(error => console.error('Error loading contacts:', error));
     }
 
-    // Display contacts in contacts tab
     function displayContacts() {
-        const container = document.getElementById('contactsList');
-        if (!container) return;
+        if (!elements.contactsList) return;
 
         if (filteredContacts.length === 0) {
-            container.innerHTML = `
+            elements.contactsList.innerHTML = `
                 <div class="text-center py-5">
-                    <i class="bi bi-person-lines-fill fs-1 text-muted"></i>
-                    <p class="text-muted mt-3 mb-0">No contacts found</p>
+                    <i class="bi bi-person-lines-fill fs-1 text-muted d-block mb-3"></i>
+                    <p class="text-muted mb-0">No contacts found</p>
                     <button class="btn btn-primary mt-3" onclick="showAddContactModal()">
                         <i class="bi bi-person-plus me-2"></i>Add Contact
                     </button>
@@ -233,24 +299,24 @@
                 <div class="list-group-item list-group-item-action" data-contact-id="${contact.id}">
                     <div class="d-flex align-items-center">
                         <div class="flex-shrink-0 me-3">
-                            <div class="bg-light rounded-circle p-3">
-                                <i class="bi bi-person-circle fs-4"></i>
+                            <div class="avatar-circle bg-primary bg-opacity-10">
+                                <i class="bi bi-person-circle fs-4 text-primary"></i>
                             </div>
                         </div>
                         <div class="flex-grow-1">
                             <div class="d-flex justify-content-between">
-                                <h6 class="mb-1">${contact.name} ${favorite}</h6>
-                                ${contact.company ? `<small class="text-muted">${contact.company}</small>` : ''}
+                                <h6 class="mb-1">${escapeHtml(contact.name)} ${favorite}</h6>
+                                ${contact.company ? `<small class="text-muted">${escapeHtml(contact.company)}</small>` : ''}
                             </div>
                             <p class="mb-1 small">${contact.phone_number}</p>
-                            ${contact.email ? `<small class="text-muted">${contact.email}</small>` : ''}
+                            ${contact.email ? `<small class="text-muted">${escapeHtml(contact.email)}</small>` : ''}
                         </div>
                         <div class="btn-group btn-group-sm ms-2">
                             <button class="btn btn-outline-success" onclick="quickCall('${contact.phone_number}')" 
-                                    ${!isDeviceConnected ? 'disabled' : ''} title="Call">
+                                    ${!isDeviceConnected ? 'disabled' : ''}>
                                 <i class="bi bi-telephone"></i>
                             </button>
-                            <button class="btn btn-outline-primary" onclick="editContact(${contact.id})" title="Edit">
+                            <button class="btn btn-outline-primary" onclick="editContact(${contact.id})">
                                 <i class="bi bi-pencil"></i>
                             </button>
                         </div>
@@ -259,25 +325,52 @@
             `;
         });
 
-        container.innerHTML = html;
-
-        // Add search listener
-        const searchInput = document.getElementById('contactSearch');
-        if (searchInput) {
-            searchInput.removeEventListener('input', filterContacts);
-            searchInput.addEventListener('input', filterContacts);
-        }
+        elements.contactsList.innerHTML = html;
     }
 
-    // Display speed dial (top contacts)
+    function displayModalContacts(contactsList) {
+        if (!elements.modalContactsList) return;
+
+        if (contactsList.length === 0) {
+            elements.modalContactsList.innerHTML = '<div class="text-center py-4">No contacts found</div>';
+            return;
+        }
+
+        let html = '';
+        contactsList.forEach(contact => {
+            html += `
+                <div class="list-group-item list-group-item-action" data-contact-id="${contact.id}" 
+                     data-phone="${contact.phone_number}" data-name="${contact.name}">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0 me-3">
+                            <div class="avatar-circle bg-primary bg-opacity-10">
+                                <i class="bi bi-person-circle fs-4 text-primary"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">${escapeHtml(contact.name)}</h6>
+                            <p class="mb-0 small">${contact.phone_number}</p>
+                        </div>
+                        <div class="btn-group btn-group-sm ms-2">
+                            <button class="btn btn-outline-success" onclick="selectContact('${contact.phone_number}', '${contact.name}')">
+                                <i class="bi bi-check-lg"></i> Select
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        elements.modalContactsList.innerHTML = html;
+    }
+
     function displaySpeedDial() {
-        const container = document.getElementById('speedDialGrid');
-        if (!container) return;
+        if (!elements.speedDialGrid) return;
 
         const topContacts = contacts.filter(c => c.favorite).slice(0, 8);
 
         if (topContacts.length === 0) {
-            container.innerHTML = `
+            elements.speedDialGrid.innerHTML = `
                 <div class="col-12 text-center py-4">
                     <p class="text-muted">No speed dial contacts. Add favorites first.</p>
                 </div>
@@ -292,25 +385,23 @@
                     <div class="speed-dial-card" onclick="quickCall('${contact.phone_number}')" 
                          style="${!isDeviceConnected ? 'cursor: not-allowed; opacity: 0.5;' : ''}">
                         <i class="bi bi-person-circle text-primary"></i>
-                        <div class="fw-bold text-truncate">${contact.name}</div>
+                        <div class="fw-bold text-truncate">${escapeHtml(contact.name)}</div>
                         <small class="text-muted text-truncate d-block">${contact.phone_number}</small>
                     </div>
                 </div>
             `;
         });
 
-        container.innerHTML = html;
+        elements.speedDialGrid.innerHTML = html;
     }
 
-    // Display favorites
     function displayFavorites() {
-        const container = document.getElementById('favoritesList');
-        if (!container) return;
+        if (!elements.favoritesList) return;
 
         const favorites = contacts.filter(c => c.favorite);
 
         if (favorites.length === 0) {
-            container.innerHTML = `
+            elements.favoritesList.innerHTML = `
                 <div class="list-group-item text-center py-4">
                     <p class="text-muted mb-0">No favorites yet</p>
                 </div>
@@ -328,7 +419,7 @@
                             <i class="bi bi-star-fill text-warning"></i>
                         </div>
                         <div class="flex-grow-1">
-                            <div class="fw-bold">${contact.name}</div>
+                            <div class="fw-bold">${escapeHtml(contact.name)}</div>
                             <small class="text-muted">${contact.phone_number}</small>
                         </div>
                         <i class="bi bi-telephone text-success"></i>
@@ -337,459 +428,90 @@
             `;
         });
 
-        container.innerHTML = html;
+        elements.favoritesList.innerHTML = html;
     }
 
-    // Display quick contacts in dialer modal
     function displayQuickContacts() {
-        const container = document.getElementById('quickContacts');
-        if (!container) return;
+        if (!elements.quickContacts) return;
 
         const quickList = contacts.slice(0, 5);
 
         if (quickList.length === 0) {
-            container.innerHTML = '<small class="text-muted">No contacts available</small>';
+            elements.quickContacts.innerHTML = '<small class="text-muted">No contacts available</small>';
             return;
         }
 
         let html = '';
         quickList.forEach(contact => {
             html += `
-                <span class="contact-chip" onclick="selectContact('${contact.phone_number}')" 
+                <span class="contact-chip" onclick="selectContact('${contact.phone_number}', '${escapeHtml(contact.name)}')" 
                       style="${!isDeviceConnected ? 'cursor: not-allowed; opacity: 0.5;' : ''}">
                     <i class="bi bi-person-circle"></i>
-                    <span>${contact.name}</span>
+                    <span>${escapeHtml(contact.name)}</span>
                 </span>
             `;
         });
 
-        container.innerHTML = html;
+        elements.quickContacts.innerHTML = html;
     }
 
-    // Update contact count badge
     function updateContactCount() {
-        const badge = document.getElementById('contactCount');
-        if (badge) {
-            badge.textContent = contacts.length;
+        if (elements.contactCount) {
+            elements.contactCount.textContent = contacts.length;
+        }
+        if (elements.totalContacts) {
+            elements.totalContacts.textContent = `Total: ${contacts.length}`;
+        }
+        if (elements.favoriteContacts) {
+            elements.favoriteContacts.textContent = `Favorites: ${contacts.filter(c => c.favorite).length}`;
         }
     }
 
-    // Load stats
-    function loadStats() {
-        fetch('/api/calls/logs?limit=1')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.pagination) {
-                    totalCalls = data.pagination.total;
-                }
-            })
-            .catch(console.error);
-    }
+    function updateContactFilters() {
+        if (!elements.contactCompanyFilters) return;
 
-    // Update stats based on calls
-    function updateStats(calls) {
-        const outgoing = calls.filter(c => c.type === 'outgoing').length;
-        const incoming = calls.filter(c => c.type === 'incoming').length;
-        const missed = calls.filter(c => c.status === 'missed').length;
-
-        document.getElementById('totalCalls').textContent = totalCalls;
-        document.getElementById('outgoingCalls').textContent = outgoing;
-        document.getElementById('incomingCalls').textContent = incoming;
-        document.getElementById('missedCalls').textContent = missed;
-    }
-
-    // Find contact by phone number
-    function findContactByNumber(number) {
-        const cleanNumber = number.replace(/\D/g, '');
-        return contacts.find(c => {
-            const cleanContact = c.phone_number.replace(/\D/g, '');
-            return cleanContact.includes(cleanNumber) || cleanNumber.includes(cleanContact);
-        });
-    }
-
-    // Attach dialer listeners
-    function attachDialerListeners() {
-        // Dialer buttons
-        document.querySelectorAll('.dialer-btn').forEach(btn => {
-            btn.addEventListener('click', function () {
-                const number = this.dataset.number;
-                appendToDialer(number);
-            });
-        });
-
-        // Clear button
-        const clearBtn = document.getElementById('clearNumber');
-        if (clearBtn) {
-            clearBtn.addEventListener('click', function () {
-                document.getElementById('dialerNumber').value = '';
-                document.getElementById('contactName').textContent = '';
-            });
-        }
-
-        // Make call button
-        const makeCallBtn = document.getElementById('makeCall');
-        if (makeCallBtn) {
-            makeCallBtn.addEventListener('click', function () {
-                const number = document.getElementById('dialerNumber').value;
-                if (number) {
-                    makeCall(number);
-                } else {
-                    showToast('Please enter a number', 'warning');
-                }
-            });
-        }
-    }
-
-    // Append digit to dialer
-    function appendToDialer(digit) {
-        const input = document.getElementById('dialerNumber');
-        input.value += digit;
-
-        // Try to find matching contact
-        const number = input.value;
-        const contact = findContactByNumber(number);
-        const contactNameEl = document.getElementById('contactName');
-
-        if (contact) {
-            contactNameEl.textContent = contact.name;
-            contactNameEl.classList.add('text-success');
-        } else {
-            contactNameEl.textContent = '';
-        }
-
-        updateNumberHint(number);
-    }
-
-    // Update number hint
-    function updateNumberHint(number) {
-        const hint = document.getElementById('numberHint');
-        const digits = number.replace(/\D/g, '');
-
-        if (digits.length === 10) {
-            hint.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i> Valid number';
-        } else if (digits.length > 10) {
-            hint.innerHTML = '<i class="bi bi-exclamation-triangle-fill text-warning"></i> Number too long';
-        } else {
-            hint.innerHTML = '<i class="bi bi-info-circle"></i> Enter 10-digit number';
-        }
-    }
-
-    // ==================== FIXED: Make a call with connection check ====================
-    function makeCall(number) {
-        // Check device connection first
-        if (!checkDeviceConnection()) {
-            return;
-        }
-
-        const formattedNumber = formatNumber(number);
-
-        fetch('/api/calls/dial', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ number: formattedNumber })
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('Call initiated', 'success');
-                    showActiveCallBanner(formattedNumber, 'dialing');
-
-                    // Close modal
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('dialerModal'));
-                    if (modal) modal.hide();
-                } else {
-                    showToast(data.message || 'Failed to make call', 'danger');
-                }
-            })
-            .catch(error => {
-                console.error('Error making call:', error);
-                showToast('Error making call', 'danger');
-            });
-    }
-
-    // ==================== FIXED: End call with connection check ====================
-    function endCall() {
-        // Check device connection first
-        if (!checkDeviceConnection()) {
-            return;
-        }
-
-        fetch('/api/calls/end', {
-            method: 'POST'
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('Call ended', 'info');
-                    hideActiveCallBanner();
-                    loadCallLogs(currentPage);
-                } else {
-                    showToast(data.message || 'Failed to end call', 'danger');
-                }
-            })
-            .catch(error => {
-                console.error('Error ending call:', error);
-                showToast('Error ending call', 'danger');
-            });
-    }
-
-    // ==================== FIXED: Mute call with connection check ====================
-    window.muteCall = function () {
-        if (!checkDeviceConnection()) return;
-
-        const muteBtn = document.querySelector('button[onclick="muteCall()"]');
-        const isMuted = muteBtn.classList.contains('active');
-
-        fetch('/api/calls/mute', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mute: !isMuted })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                if (!isMuted) {
-                    muteBtn.classList.add('active', 'btn-success');
-                    muteBtn.classList.remove('btn-outline-success');
-                    muteBtn.innerHTML = '<i class="bi bi-mic-mute"></i> Unmute';
-                    showToast('Microphone muted', 'warning');
-                } else {
-                    muteBtn.classList.remove('active', 'btn-success');
-                    muteBtn.classList.add('btn-outline-success');
-                    muteBtn.innerHTML = '<i class="bi bi-mic-mute"></i> Mute';
-                    showToast('Microphone unmuted', 'info');
-                }
-            } else {
-                showToast(data.message || 'Failed to toggle mute', 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error toggling mute:', error);
-            showToast('Error toggling mute', 'danger');
-        });
-    };
-
-    // ==================== FIXED: Hold call with connection check ====================
-    window.holdCall = function () {
-        if (!checkDeviceConnection()) return;
-
-        const holdBtn = document.querySelector('button[onclick="holdCall()"]');
-        const isOnHold = holdBtn.classList.contains('active');
-
-        fetch('/api/calls/hold', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ hold: !isOnHold })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                if (!isOnHold) {
-                    holdBtn.classList.add('active', 'btn-warning');
-                    holdBtn.classList.remove('btn-outline-primary');
-                    holdBtn.innerHTML = '<i class="bi bi-pause"></i> Resume';
-                    showToast('Call on hold', 'info');
-                } else {
-                    holdBtn.classList.remove('active', 'btn-warning');
-                    holdBtn.classList.add('btn-outline-primary');
-                    holdBtn.innerHTML = '<i class="bi bi-pause"></i> Hold';
-                    showToast('Call resumed', 'info');
-                }
-            } else {
-                showToast(data.message || 'Failed to toggle hold', 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error toggling hold:', error);
-            showToast('Error toggling hold', 'danger');
-        });
-    };
-
-    // ==================== FIXED: Quick call with connection check ====================
-    window.quickCall = function (number) {
-        if (!number) return;
+        let html = '<span class="badge bg-primary cursor-pointer" onclick="filterContactsByCompany(\'\')">All</span>';
         
-        if (!checkDeviceConnection()) {
-            return;
-        }
-
-        // Use SweetAlert2 or Bootstrap modal for better UX
-        if (confirm(`Call ${number}?`)) {
-            const callBtn = event?.target?.closest('button');
-            const originalHtml = callBtn?.innerHTML;
-            
-            if (callBtn) {
-                callBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
-                callBtn.disabled = true;
-            }
-
-            fetch('/api/calls/dial', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ number: number })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('Call initiated', 'success');
-                    // Close any open modals
-                    const dialerModal = bootstrap.Modal.getInstance(document.getElementById('dialerModal'));
-                    if (dialerModal) dialerModal.hide();
-                    
-                    // Start checking call status
-                    startCallStatusCheck();
-                } else {
-                    showToast(data.message || 'Failed to make call', 'danger');
-                }
-            })
-            .catch(error => {
-                console.error('Error making call:', error);
-                showToast('Error making call', 'danger');
-            })
-            .finally(() => {
-                if (callBtn) {
-                    callBtn.innerHTML = originalHtml;
-                    callBtn.disabled = false;
-                }
-            });
-        }
-    };
-
-    window.quickSms = function (number) {
-        if (!number) return;
-
-        // Open compose modal with number pre-filled
-        document.getElementById('modalTo').value = number;
-        const modal = new bootstrap.Modal(document.getElementById('composeSmsModal'));
-        modal.show();
-    };
-
-    // Show active call banner
-    function showActiveCallBanner(number, status, duration = 0) {
-        const banner = document.getElementById('activeCallBanner');
-        if (!banner) return;
-
-        banner.classList.remove('d-none');
-        document.getElementById('activeCallNumber').textContent = number;
-        document.getElementById('activeCallStatus').textContent = getStatusText(status);
-        document.getElementById('activeCallDuration').textContent = formatDuration(duration);
-    }
-
-    // Hide active call banner
-    function hideActiveCallBanner() {
-        const banner = document.getElementById('activeCallBanner');
-        if (banner) {
-            banner.classList.add('d-none');
-        }
-    }
-
-    // Start call status check
-    function startCallStatusCheck() {
-        if (callStatusInterval) {
-            clearInterval(callStatusInterval);
-        }
-        callStatusInterval = setInterval(checkCallStatus, 2000);
-    }
-
-    // Check call status
-    function checkCallStatus() {
-        if (!isDeviceConnected) {
-            // If device goes offline during call, hide banner
-            hideActiveCallBanner();
-            if (callStatusInterval) {
-                clearInterval(callStatusInterval);
-                callStatusInterval = null;
-            }
-            return;
-        }
-
-        fetch('/api/calls/status')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.data.active) {
-                    showActiveCallBanner(data.data.number, data.data.status, data.data.duration);
-                } else {
-                    hideActiveCallBanner();
-                }
-            })
-            .catch(console.error);
-    }
-
-    // Delete call log
-    function deleteCallLog(id) {
-        if (!confirm('Delete this call record?')) return;
-
-        fetch(`/api/calls/logs/${id}`, {
-            method: 'DELETE'
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('Call log deleted', 'success');
-                    loadCallLogs(currentPage);
-                }
-            })
-            .catch(console.error);
-    }
-
-    // Clear all calls
-    function clearAllCalls() {
-        if (!confirm('Delete all call logs? This cannot be undone.')) return;
-
-        // This would need a bulk delete endpoint
-        showToast('Feature coming soon', 'info');
-    }
-
-    // Refresh calls
-    function refreshCalls() {
-        loadCallLogs(currentPage);
-    }
-
-    // Attach search and filter
-    function attachSearchAndFilter() {
-        const searchInput = document.getElementById('searchCalls');
-        const filterSelect = document.getElementById('filterCallType');
-        const sortSelect = document.getElementById('sortCalls');
-
-        if (searchInput) {
-            searchInput.addEventListener('input', debounce(filterCalls, 300));
-        }
-
-        if (filterSelect) {
-            filterSelect.addEventListener('change', filterCalls);
-        }
-
-        if (sortSelect) {
-            sortSelect.addEventListener('change', sortCalls);
-        }
-    }
-
-    // Filter calls
-    function filterCalls() {
-        const searchTerm = document.getElementById('searchCalls')?.value.toLowerCase() || '';
-        const filterType = document.getElementById('filterCallType')?.value || 'all';
-
-        document.querySelectorAll('#callsTableBody tr, #callsMobileList .card').forEach(item => {
-            const text = item.textContent.toLowerCase();
-            const type = item.querySelector('.call-type')?.dataset.type || '';
-
-            const matchesSearch = text.includes(searchTerm);
-            const matchesFilter = filterType === 'all' || text.includes(filterType);
-
-            if (matchesSearch && matchesFilter) {
-                item.style.display = '';
-            } else {
-                item.style.display = 'none';
-            }
+        companies.forEach(company => {
+            html += `<span class="badge bg-secondary cursor-pointer" onclick="filterContactsByCompany('${company}')">${escapeHtml(company)}</span>`;
         });
+
+        elements.contactCompanyFilters.innerHTML = html;
+
+        // Update modal company filter
+        if (elements.modalContactCompany) {
+            let options = '<option value="">All Companies</option>';
+            companies.forEach(company => {
+                options += `<option value="${company}">${escapeHtml(company)}</option>`;
+            });
+            elements.modalContactCompany.innerHTML = options;
+        }
     }
 
-    // Sort calls
-    function sortCalls() {
-        const sortOrder = document.getElementById('sortCalls')?.value || 'newest';
-        // Implementation depends on your data structure
+    // ==================== CONTACT FILTERS ====================
+    function filterContacts() {
+        const searchTerm = elements.contactSearch?.value.toLowerCase() || '';
+
+        filteredContacts = contacts.filter(c => {
+            return c.name.toLowerCase().includes(searchTerm) ||
+                c.phone_number.includes(searchTerm);
+        });
+
+        displayContacts();
+    }
+
+    function filterModalContacts() {
+        const searchTerm = elements.modalContactSearch?.value.toLowerCase() || '';
+        const company = elements.modalContactCompany?.value || '';
+
+        const filtered = contacts.filter(c => {
+            const matchesSearch = c.name.toLowerCase().includes(searchTerm) ||
+                c.phone_number.includes(searchTerm);
+            const matchesCompany = !company || c.company === company;
+            return matchesSearch && matchesCompany;
+        });
+
+        displayModalContacts(filtered);
     }
 
     window.filterContactsByCompany = function (company) {
@@ -806,29 +528,372 @@
             badge.classList.add('bg-secondary');
         });
 
-        const activeBadge = event?.target;
-        if (activeBadge) {
-            activeBadge.classList.remove('bg-secondary');
-            activeBadge.classList.add('bg-primary');
+        if (company) {
+            const activeBadge = Array.from(document.querySelectorAll('#contactCompanyFilters .badge'))
+                .find(b => b.textContent === company);
+            if (activeBadge) {
+                activeBadge.classList.remove('bg-secondary');
+                activeBadge.classList.add('bg-primary');
+            }
+        } else {
+            const allBadge = document.querySelector('#contactCompanyFilters .badge:first-child');
+            if (allBadge) {
+                allBadge.classList.remove('bg-secondary');
+                allBadge.classList.add('bg-primary');
+            }
         }
     };
 
-    // Filter contacts by search
-    function filterContacts() {
-        const searchTerm = document.getElementById('contactSearch')?.value.toLowerCase() || '';
-        const company = document.getElementById('modalContactCompany')?.value || '';
-
-        filteredContacts = contacts.filter(c => {
-            const matchesSearch = c.name.toLowerCase().includes(searchTerm) ||
-                c.phone_number.includes(searchTerm);
-            const matchesCompany = !company || c.company === company;
-            return matchesSearch && matchesCompany;
+    // ==================== CONTACT LOOKUP ====================
+    function findContactByNumber(number) {
+        if (!number || !contacts || contacts.length === 0) return null;
+        
+        const cleanNumber = number.replace(/\D/g, '');
+        if (!cleanNumber) return null;
+        
+        return contacts.find(c => {
+            const cleanContact = c.phone_number.replace(/\D/g, '');
+            if (!cleanContact) return false;
+            
+            return cleanContact === cleanNumber ||
+                cleanContact.slice(-10) === cleanNumber.slice(-10) ||
+                cleanContact.includes(cleanNumber) ||
+                cleanNumber.includes(cleanContact);
         });
-
-        displayContacts();
     }
 
-    // Attach modal listeners
+    // ==================== DIALER ====================
+    function attachDialerListeners() {
+        // Dialer buttons
+        document.querySelectorAll('.dialer-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const number = this.dataset.number;
+                appendToDialer(number);
+            });
+        });
+
+        // Clear button
+        if (elements.clearNumber) {
+            elements.clearNumber.addEventListener('click', function () {
+                if (elements.dialerNumber) elements.dialerNumber.value = '';
+                if (elements.contactName) elements.contactName.textContent = '';
+                if (elements.numberHint) {
+                    elements.numberHint.innerHTML = '<i class="bi bi-info-circle"></i> Enter 10-digit number';
+                }
+            });
+        }
+
+        // Make call button
+        if (elements.makeCall) {
+            elements.makeCall.addEventListener('click', function () {
+                const number = elements.dialerNumber?.value;
+                if (number) {
+                    makeCall(number);
+                } else {
+                    showToast('Please enter a number', 'warning');
+                }
+            });
+        }
+    }
+
+    function appendToDialer(digit) {
+        if (!elements.dialerNumber) return;
+        
+        elements.dialerNumber.value += digit;
+
+        const number = elements.dialerNumber.value;
+        const contact = findContactByNumber(number);
+
+        if (elements.contactName) {
+            if (contact) {
+                elements.contactName.textContent = contact.name;
+                elements.contactName.classList.add('text-success');
+            } else {
+                elements.contactName.textContent = '';
+            }
+        }
+
+        updateNumberHint(number);
+    }
+
+    function updateNumberHint(number) {
+        if (!elements.numberHint) return;
+        
+        const digits = number.replace(/\D/g, '');
+
+        if (digits.length === 10) {
+            elements.numberHint.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i> Valid number';
+        } else if (digits.length > 10) {
+            elements.numberHint.innerHTML = '<i class="bi bi-exclamation-triangle-fill text-warning"></i> Number too long';
+        } else {
+            elements.numberHint.innerHTML = '<i class="bi bi-info-circle"></i> Enter 10-digit number';
+        }
+    }
+
+    // ==================== CALL ACTIONS ====================
+    function makeCall(number) {
+        if (!isDeviceConnected) {
+            showToast('Device is offline. Cannot make call.', 'warning');
+            return;
+        }
+
+        const formattedNumber = formatNumber(number);
+
+        fetch('/api/calls/dial', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ number: formattedNumber })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Call initiated', 'success');
+                    
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('dialerModal'));
+                    if (modal) modal.hide();
+                    
+                    // Clear dialer
+                    if (elements.dialerNumber) elements.dialerNumber.value = '';
+                    if (elements.contactName) elements.contactName.textContent = '';
+                } else {
+                    showToast(data.message || 'Failed to make call', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error making call:', error);
+                showToast('Error making call', 'danger');
+            });
+    }
+
+    function endCall() {
+        if (!isDeviceConnected) {
+            showToast('Device is offline.', 'warning');
+            return;
+        }
+
+        fetch('/api/calls/end', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Call ended', 'info');
+                    hideActiveCallBanner();
+                    loadCallLogs(currentPage);
+                } else {
+                    showToast(data.message || 'Failed to end call', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error ending call:', error);
+                showToast('Error ending call', 'danger');
+            });
+    }
+
+    window.muteCall = function () {
+        if (!isDeviceConnected) return;
+
+        const muteBtn = document.querySelector('button[onclick="muteCall()"]');
+        const isMuted = muteBtn?.classList.contains('active') || false;
+
+        fetch('/api/calls/mute', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mute: !isMuted })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (!isMuted) {
+                    muteBtn?.classList.add('active', 'btn-success');
+                    muteBtn?.classList.remove('btn-outline-success');
+                    muteBtn.innerHTML = '<i class="bi bi-mic-mute"></i> Unmute';
+                    showToast('Microphone muted', 'warning');
+                } else {
+                    muteBtn?.classList.remove('active', 'btn-success');
+                    muteBtn?.classList.add('btn-outline-success');
+                    muteBtn.innerHTML = '<i class="bi bi-mic-mute"></i> Mute';
+                    showToast('Microphone unmuted', 'info');
+                }
+            } else {
+                showToast(data.message || 'Failed to toggle mute', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error toggling mute:', error);
+            showToast('Error toggling mute', 'danger');
+        });
+    };
+
+    window.holdCall = function () {
+        if (!isDeviceConnected) return;
+
+        const holdBtn = document.querySelector('button[onclick="holdCall()"]');
+        const isOnHold = holdBtn?.classList.contains('active') || false;
+
+        fetch('/api/calls/hold', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hold: !isOnHold })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (!isOnHold) {
+                    holdBtn?.classList.add('active', 'btn-warning');
+                    holdBtn?.classList.remove('btn-outline-primary');
+                    holdBtn.innerHTML = '<i class="bi bi-pause"></i> Resume';
+                    showToast('Call on hold', 'info');
+                } else {
+                    holdBtn?.classList.remove('active', 'btn-warning');
+                    holdBtn?.classList.add('btn-outline-primary');
+                    holdBtn.innerHTML = '<i class="bi bi-pause"></i> Hold';
+                    showToast('Call resumed', 'info');
+                }
+            } else {
+                showToast(data.message || 'Failed to toggle hold', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error toggling hold:', error);
+            showToast('Error toggling hold', 'danger');
+        });
+    };
+
+    window.quickCall = function (number) {
+        if (!number) return;
+        
+        if (!isDeviceConnected) {
+            showToast('Device is offline. Cannot make call.', 'warning');
+            return;
+        }
+
+        if (confirm(`Call ${formatDisplayNumber(number)}?`)) {
+            makeCall(number);
+        }
+    };
+
+    window.quickSms = function (number) {
+        if (!number) return;
+        window.location.href = `/sms?to=${encodeURIComponent(number)}`;
+    };
+
+    // ==================== ACTIVE CALL BANNER ====================
+    function showActiveCallBanner(number, status, duration = 0) {
+        if (!elements.activeCallBanner) return;
+
+        elements.activeCallBanner.classList.remove('d-none');
+        if (elements.activeCallNumber) elements.activeCallNumber.textContent = number;
+        if (elements.activeCallStatus) elements.activeCallStatus.textContent = getStatusText(status);
+        if (elements.activeCallDuration) elements.activeCallDuration.textContent = formatDuration(duration);
+    }
+
+    function hideActiveCallBanner() {
+        if (elements.activeCallBanner) {
+            elements.activeCallBanner.classList.add('d-none');
+        }
+    }
+
+    // ==================== CALL STATUS ====================
+    function startCallStatusCheck() {
+        if (callStatusInterval) {
+            clearInterval(callStatusInterval);
+        }
+        callStatusInterval = setInterval(checkCallStatus, 2000);
+    }
+
+    function checkCallStatus() {
+        if (!isDeviceConnected) {
+            hideActiveCallBanner();
+            return;
+        }
+
+        fetch('/api/calls/status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data.active) {
+                    showActiveCallBanner(data.data.number, data.data.status, data.data.duration);
+                } else {
+                    hideActiveCallBanner();
+                }
+            })
+            .catch(console.error);
+    }
+
+    // ==================== CALL LOG MANAGEMENT ====================
+    function deleteCallLog(id) {
+        if (!confirm('Delete this call record?')) return;
+
+        fetch(`/api/calls/logs/${id}`, { method: 'DELETE' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Call log deleted', 'success');
+                    loadCallLogs(currentPage);
+                    loadCallStats();
+                } else {
+                    showToast(data.message || 'Failed to delete', 'danger');
+                }
+            })
+            .catch(console.error);
+    }
+
+    function clearAllCalls() {
+        if (!confirm('Delete all call logs? This cannot be undone.')) return;
+        showToast('Feature coming soon', 'info');
+    }
+
+    function refreshCalls() {
+        loadCallLogs(currentPage);
+        loadCallStats();
+        showToast('Call logs refreshed', 'success');
+    }
+
+    // ==================== SEARCH AND FILTER ====================
+    function attachSearchAndFilter() {
+        if (elements.searchCalls) {
+            elements.searchCalls.addEventListener('input', debounce(filterCalls, 300));
+        }
+
+        if (elements.filterCallType) {
+            elements.filterCallType.addEventListener('change', filterCalls);
+        }
+
+        if (elements.sortCalls) {
+            elements.sortCalls.addEventListener('change', sortCalls);
+        }
+
+        if (elements.contactSearch) {
+            elements.contactSearch.addEventListener('input', debounce(filterContacts, 300));
+        }
+
+        if (elements.modalContactSearch) {
+            elements.modalContactSearch.addEventListener('input', debounce(filterModalContacts, 300));
+        }
+
+        if (elements.modalContactCompany) {
+            elements.modalContactCompany.addEventListener('change', filterModalContacts);
+        }
+    }
+
+    function filterCalls() {
+        const searchTerm = elements.searchCalls?.value.toLowerCase() || '';
+        const filterType = elements.filterCallType?.value || 'all';
+
+        document.querySelectorAll('#callsTableBody tr, #callsMobileList .card').forEach(item => {
+            const text = item.textContent.toLowerCase();
+            const matchesSearch = text.includes(searchTerm);
+            const matchesFilter = filterType === 'all' || text.includes(filterType);
+
+            item.style.display = (matchesSearch && matchesFilter) ? '' : 'none';
+        });
+    }
+
+    function sortCalls() {
+        // Implementation depends on your data structure
+        showToast('Sorting feature coming soon', 'info');
+    }
+
+    // ==================== MODAL HANDLING ====================
     function attachModalListeners() {
         // Save contact button
         const saveBtn = document.getElementById('saveContactBtn');
@@ -842,73 +907,64 @@
             deleteBtn.addEventListener('click', deleteContact);
         }
 
-        // Contacts modal search
-        const modalSearch = document.getElementById('modalContactSearch');
-        if (modalSearch) {
-            modalSearch.addEventListener('input', debounce(filterModalContacts, 300));
+        // Add contact modal reset
+        const addContactModal = document.getElementById('addContactModal');
+        if (addContactModal) {
+            addContactModal.addEventListener('hidden.bs.modal', function() {
+                document.getElementById('contactForm')?.reset();
+                document.getElementById('contactId').value = '';
+                document.getElementById('deleteContactBtn')?.classList.add('d-none');
+            });
         }
 
-        // Contacts modal company filter
-        const modalCompany = document.getElementById('modalContactCompany');
-        if (modalCompany) {
-            modalCompany.addEventListener('change', filterModalContacts);
+        // Contacts modal
+        const contactsModal = document.getElementById('contactsModal');
+        if (contactsModal) {
+            contactsModal.addEventListener('show.bs.modal', function() {
+                displayModalContacts(contacts);
+            });
         }
     }
 
-    // Filter modal contacts
-    function filterModalContacts() {
-        const searchTerm = document.getElementById('modalContactSearch')?.value.toLowerCase() || '';
-        const company = document.getElementById('modalContactCompany')?.value || '';
+    window.openContactsModal = function() {
+        const dialerModal = bootstrap.Modal.getInstance(document.getElementById('dialerModal'));
+        if (dialerModal) {
+            dialerModal.hide();
+        }
+        
+        setTimeout(() => {
+            const contactsModal = new bootstrap.Modal(document.getElementById('contactsModal'));
+            contactsModal.show();
+            displayModalContacts(contacts);
+        }, 300);
+    };
 
-        const filtered = contacts.filter(c => {
-            const matchesSearch = c.name.toLowerCase().includes(searchTerm) ||
-                c.phone_number.includes(searchTerm);
-            const matchesCompany = !company || c.company === company;
-            return matchesSearch && matchesCompany;
-        });
+    window.openDialerModal = function() {
+        const modal = new bootstrap.Modal(document.getElementById('dialerModal'));
+        modal.show();
+    };
 
-        displayModalContacts(filtered);
-    }
-
-    // Display contacts in modal
-    function displayModalContacts(contactsList) {
-        const container = document.getElementById('modalContactsList');
-        if (!container) return;
-
-        if (contactsList.length === 0) {
-            container.innerHTML = '<div class="text-center py-4">No contacts found</div>';
-            return;
+    window.selectContact = function(phone, name) {
+        if (elements.dialerNumber) {
+            elements.dialerNumber.value = phone;
+        }
+        if (elements.contactName) {
+            elements.contactName.textContent = name;
+            elements.contactName.classList.add('text-success');
         }
 
-        let html = '';
-        contactsList.forEach(contact => {
-            html += `
-                <div class="list-group-item list-group-item-action" data-contact-id="${contact.id}">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-shrink-0 me-3">
-                            <i class="bi bi-person-circle fs-3"></i>
-                        </div>
-                        <div class="flex-grow-1">
-                            <h6 class="mb-1">${contact.name}</h6>
-                            <p class="mb-0 small">${contact.phone_number}</p>
-                        </div>
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-success" onclick="quickCall('${contact.phone_number}')" 
-                                    ${!isDeviceConnected ? 'disabled' : ''}>
-                                <i class="bi bi-telephone"></i>
-                            </button>
-                            <button class="btn btn-outline-primary" onclick="editContact(${contact.id})">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
+        const contactsModal = bootstrap.Modal.getInstance(document.getElementById('contactsModal'));
+        if (contactsModal) contactsModal.hide();
 
-        container.innerHTML = html;
-    }
+        setTimeout(() => {
+            const dialerModal = new bootstrap.Modal(document.getElementById('dialerModal'));
+            dialerModal.show();
+        }, 300);
 
+        showToast(`Selected: ${name}`, 'success');
+    };
+
+    // ==================== CONTACT CRUD ====================
     window.showAddContactModal = function (phoneNumber = '') {
         document.getElementById('contactModalTitle').textContent = 'Add New Contact';
         document.getElementById('contactId').value = '';
@@ -923,7 +979,6 @@
         modal.show();
     };
 
-    // Edit contact
     function editContact(id) {
         fetch(`/api/contacts/${id}`)
             .then(response => response.json())
@@ -948,7 +1003,6 @@
             .catch(console.error);
     }
 
-    // Edit contact from number
     function editContactFromNumber(number) {
         const contact = findContactByNumber(number);
         if (contact) {
@@ -959,7 +1013,6 @@
         }
     }
 
-    // Save contact
     function saveContact() {
         const id = document.getElementById('contactId').value;
         const data = {
@@ -976,14 +1029,17 @@
             return;
         }
 
+        const saveBtn = document.getElementById('saveContactBtn');
+        const originalText = saveBtn.innerHTML;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving...';
+        saveBtn.disabled = true;
+
         const url = id ? `/api/contacts/${id}` : '/api/contacts';
         const method = id ? 'PUT' : 'POST';
 
         fetch(url, {
             method: method,
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         })
             .then(response => response.json())
@@ -991,66 +1047,53 @@
                 if (data.success) {
                     showToast(id ? 'Contact updated' : 'Contact created', 'success');
 
-                    // Close modal
                     const modal = bootstrap.Modal.getInstance(document.getElementById('addContactModal'));
                     if (modal) modal.hide();
 
-                    // Reload contacts
                     loadContacts();
                 } else {
                     showToast('Failed to save contact', 'danger');
                 }
             })
-            .catch(console.error);
+            .catch(console.error)
+            .finally(() => {
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+            });
     }
 
-    // Delete contact
     function deleteContact() {
         const id = document.getElementById('contactId').value;
         if (!id || !confirm('Delete this contact?')) return;
 
-        fetch(`/api/contacts/${id}`, {
-            method: 'DELETE'
-        })
+        fetch(`/api/contacts/${id}`, { method: 'DELETE' })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     showToast('Contact deleted', 'success');
 
-                    // Close modal
                     const modal = bootstrap.Modal.getInstance(document.getElementById('addContactModal'));
                     if (modal) modal.hide();
 
-                    // Reload contacts
                     loadContacts();
+                } else {
+                    showToast(data.message || 'Failed to delete', 'danger');
                 }
             })
             .catch(console.error);
     }
 
-    // Select contact for dialer
-    function selectContact(number) {
-        document.getElementById('dialerNumber').value = number;
-        const contact = findContactByNumber(number);
-        if (contact) {
-            document.getElementById('contactName').textContent = contact.name;
-        }
-    }
-
-    // Load more contacts
-    function loadMoreContacts() {
-        const modal = new bootstrap.Modal(document.getElementById('contactsModal'));
-        modal.show();
-        loadContacts(); // Refresh contacts
-    }
-
-    // Update pagination
+    // ==================== PAGINATION ====================
     function updatePagination(pagination) {
+        if (!elements.callsPagination) return;
+
         currentPage = pagination.page;
         totalPages = pagination.pages;
 
-        const container = document.getElementById('callsPagination');
-        if (!container) return;
+        if (totalPages <= 1) {
+            elements.callsPagination.innerHTML = '';
+            return;
+        }
 
         let html = '';
 
@@ -1064,8 +1107,8 @@
         `;
 
         // Pages
-        for (let i = 1; i <= pagination.pages; i++) {
-            if (i === 1 || i === pagination.pages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
                 html += `
                     <li class="page-item ${i === currentPage ? 'active' : ''}">
                         <a class="page-link" href="#" onclick="loadCallLogs(${i}); return false;">${i}</a>
@@ -1078,25 +1121,38 @@
 
         // Next
         html += `
-            <li class="page-item ${currentPage === pagination.pages ? 'disabled' : ''}">
+            <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
                 <a class="page-link" href="#" onclick="loadCallLogs(${currentPage + 1}); return false;">
                     <span aria-hidden="true">&raquo;</span>
                 </a>
             </li>
         `;
 
-        container.innerHTML = html;
+        elements.callsPagination.innerHTML = html;
     }
 
-    // Helper functions
+    // ==================== HELPER FUNCTIONS ====================
     function formatNumber(number) {
-        let cleaned = number.replace(/\D/g, '');
+        const cleaned = number.replace(/\D/g, '');
         if (cleaned.length === 10) {
             return '+88' + cleaned;
         } else if (cleaned.length === 11 && cleaned.startsWith('0')) {
             return '+88' + cleaned.substring(1);
         } else if (cleaned.length === 13 && cleaned.startsWith('88')) {
             return '+' + cleaned;
+        }
+        return number;
+    }
+
+    function formatDisplayNumber(number) {
+        if (!number) return 'Unknown';
+        const cleaned = number.replace(/\D/g, '');
+        if (cleaned.length === 13 && cleaned.startsWith('88')) {
+            return '+' + cleaned.slice(0,2) + ' ' + cleaned.slice(2,5) + ' ' + cleaned.slice(5,8) + ' ' + cleaned.slice(8);
+        } else if (cleaned.length === 11) {
+            return '+88 ' + cleaned.slice(1,4) + ' ' + cleaned.slice(4,7) + ' ' + cleaned.slice(7);
+        } else if (cleaned.length === 10) {
+            return '+88 ' + cleaned.slice(0,3) + ' ' + cleaned.slice(3,6) + ' ' + cleaned.slice(6);
         }
         return number;
     }
@@ -1149,6 +1205,7 @@
     }
 
     function formatDate(dateString) {
+        if (!dateString) return 'Unknown';
         const date = new Date(dateString);
         const now = new Date();
         const diff = now - date;
@@ -1164,6 +1221,16 @@
         }
 
         return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+    }
+
+    function escapeHtml(unsafe) {
+        if (!unsafe) return '';
+        return String(unsafe)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
     }
 
     function showToast(message, type = 'info') {
@@ -1186,15 +1253,16 @@
         };
     }
 
-    // Clean up
+    // ==================== CLEANUP ====================
     window.addEventListener('beforeunload', function () {
         if (callStatusInterval) {
             clearInterval(callStatusInterval);
         }
     });
 
-    // Expose functions globally
+    // ==================== EXPOSE GLOBALLY ====================
     window.loadCallLogs = loadCallLogs;
+    window.refreshCalls = refreshCalls;
     window.quickCall = quickCall;
     window.quickSms = quickSms;
     window.endCall = endCall;
@@ -1202,12 +1270,14 @@
     window.holdCall = holdCall;
     window.deleteCallLog = deleteCallLog;
     window.clearAllCalls = clearAllCalls;
-    window.refreshCalls = refreshCalls;
     window.filterContactsByCompany = filterContactsByCompany;
     window.editContact = editContact;
     window.editContactFromNumber = editContactFromNumber;
     window.showAddContactModal = showAddContactModal;
     window.selectContact = selectContact;
-    window.loadMoreContacts = loadMoreContacts;
+    window.openContactsModal = openContactsModal;
+    window.openDialerModal = openDialerModal;
     window.formatNumber = formatNumber;
+
+    console.log('Calls.js initialized');
 })();
